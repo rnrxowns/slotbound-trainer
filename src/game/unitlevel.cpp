@@ -20,7 +20,7 @@ for r = 2, maxR do ths[#ths+1] = tostring(th[r] or 0) end
 local st = u.stats or {}
 return table.concat({ tostring(u.sym), tostring(u.grade), tostring(u.rank or 1), tostring(u.index or 0), how,
   tostring(u.absorbLV or 1), tostring(maxR), table.concat(ths, ','), u.needsClassSelect and '1' or '0',
-  tostring(u.pendingRank or 0), tostring(u.subclassName or ''),
+  tostring(u.pendingRank or 0), textField(u.subclassName),
   tostring(st.hp or 0), tostring(st.atk or 0), tostring(st.aspd or 0), tostring(st.distance or 0),
   __sbSkillInfo(u) }, FS)
 )lua";
@@ -43,9 +43,7 @@ local function __sbSkillInfo(u)
   local S = require('src.data.skill')
   local ok, list = pcall(S.getSkillsForUnit, u)
   if not ok or type(list) ~= 'table' or #list == 0 then return 'none' end
-  local Lang = require('src.data.language')
-  local loc = Lang[rawget(_G, 'currentGameLang') or 'zh'] or Lang.zh or {}
-  local function nm(d) return (loc['skill.name.' .. tostring(d.id)] or tostring(d.name or d.id)):gsub('|', '/') end
+  local function nm(d) return textField(localizedText('skill.name.' .. tostring(d.id), d.name) or d.id) end
   for _, d in ipairs(list) do
     local base = tonumber(d.runtime and d.runtime.cooldown) or tonumber(d.cooldown)
     if d.activationType == 'active' and base and base > 0 then
@@ -74,7 +72,7 @@ end
 std::string UnitLevelEditor::PollCode() const
 {
     // 顺带装技能 hook（已装就跳过），读到的冷却倍率才含修改器的自定义
-    return std::string(kCdHookLua) + kResolveUnit + kSkillInfoLua + kUnitLua;
+    return std::string(kCdHookLua) + kResolveUnit + kLocalizedTextLua + kSkillInfoLua + kUnitLua;
 }
 
 void UnitLevelEditor::OnPoll(const bridge::Result& r)
@@ -131,10 +129,10 @@ void UnitLevelEditor::SetLevel(int level)
         return;
     std::string code = CheckSameUnit(unit_.sym, unit_.rosterIndex) +
         "local f = rawget(_G, '__slotSetAwakeningLevel')\n"
-        "if type(f) ~= 'function' then return '游戏里找不到 __slotSetAwakeningLevel' end\n"
+        "if type(f) ~= 'function' then return '게임에서 흡수 레벨 변경 함수(__slotSetAwakeningLevel)를 찾을 수 없습니다.' end\n"
         "f(u, " + std::to_string(level) + ")\n"
         "return 'ok'\n";
-    Act(std::move(code), "吸收 LV 已改成 " + std::to_string(level));
+    Act(std::move(code), "흡수 레벨을 변경했습니다. 현재 레벨 " + std::to_string(level));
 }
 
 void UnitLevelEditor::SetStat(const char* key, double value, const char* label)
@@ -146,7 +144,7 @@ void UnitLevelEditor::SetStat(const char* key, double value, const char* label)
     // atkPeriod = 1 / max(0.05, aspd)、atkTicks = max(1, floor(atkPeriod * 60 + 0.5))
     std::string code = CheckSameUnit(unit_.sym, unit_.rosterIndex) +
         "local st = u.stats\n"
-        "if type(st) ~= 'table' then return '这个单位没有 stats' end\n"
+        "if type(st) ~= 'table' then return '이 유닛의 능력치 데이터가 없습니다.' end\n"
         "local key, new = " + Quote(key) + ", " + num + "\n"
         "local old = tonumber(st[key]) or 0\n"
         "st[key] = new\n"
@@ -168,7 +166,7 @@ void UnitLevelEditor::SetStat(const char* key, double value, const char* label)
         "  end\n"
         "end\n"
         "return 'ok'\n";
-    Act(std::move(code), std::string(label) + "已改成 " + num + "（一直有效；战斗中当场生效）");
+    Act(std::move(code), std::string(label) + " 변경 완료 (" + num + "). 전투 중에도 즉시 적용됩니다.");
 }
 
 void UnitLevelEditor::SetSkillCooldown(double seconds)
@@ -183,7 +181,7 @@ void UnitLevelEditor::SetSkillCooldown(double seconds)
     // 按「想要的秒数 ÷ (基础 × 游戏原倍率)」算出 __sbSkillCdMul 存在单位上 → 跟存档走，一直有效。
     std::string code = std::string(kCdHookLua) + CheckSameUnit(unit_.sym, unit_.rosterIndex) +
         "local H = rawget(_G, '__sbCdHook')\n"
-        "if type(H) ~= 'table' then return '游戏里找不到 __slotGetSkillCooldownMul' end\n" +
+        "if type(H) ~= 'table' then return '게임에서 재사용 대기시간 계산 함수(__slotGetSkillCooldownMul)를 찾을 수 없습니다.' end\n" +
         (reset ? std::string("u.__sbSkillCdMul = nil\n")
                : "local nat = tonumber(H.orig(u)) or 1\n"
                  "local m = " + num + " / (" + Number(unit_.skillBaseCd) + " * nat)\n"
@@ -197,8 +195,8 @@ void UnitLevelEditor::SetSkillCooldown(double seconds)
         "  if cd and tonumber(a.skill.cdT) and a.skill.cdT > cd then a.skill.cdT = cd end\n"
         "end\n"
         "return 'ok'\n";
-    Act(std::move(code), reset ? std::string("技能冷却已恢复成原版")
-                               : std::string("技能冷却已改成 ") + num + " 秒（存档里一直有效，要开着修改器；战斗中当场生效）");
+    Act(std::move(code), reset ? std::string("스킬 재사용 대기시간을 기본값으로 복원했습니다.")
+                               : "스킬 재사용 대기시간 변경 완료 (" + num + "초). 트레이너가 실행 중이면 저장 후에도 유지됩니다.");
 }
 
 void UnitLevelEditor::SetSkillParam(const std::string& key, double value, bool reset, const std::string& label)
@@ -213,7 +211,8 @@ void UnitLevelEditor::SetSkillParam(const std::string& key, double value, bool r
         "ov[" + Quote(key) + "] = " + (reset ? std::string("nil") : num) + "\n"
         "u.__sbSkillRt = next(ov) and ov or nil\n"
         "return 'ok'\n";
-    Act(std::move(code), reset ? label + "已恢复原版" : label + "已改成 " + num + "（存档里一直有效，要开着修改器；战斗中当场生效）");
+    Act(std::move(code), reset ? label + " 기본값 복원 완료"
+                               : label + " 변경 완료 (" + num + "). 트레이너가 실행 중이면 저장 후에도 유지됩니다.");
 }
 
 void UnitLevelEditor::RaiseRank(int rank)
@@ -222,8 +221,8 @@ void UnitLevelEditor::RaiseRank(int rank)
         return;
     std::string code = CheckSameUnit(unit_.sym, unit_.rosterIndex) +
         "local f = rawget(_G, '__slotStoneRaiseRank')\n"
-        "if type(f) ~= 'function' then return '游戏里找不到 __slotStoneRaiseRank' end\n"
+        "if type(f) ~= 'function' then return '게임에서 승급 함수(__slotStoneRaiseRank)를 찾을 수 없습니다.' end\n"
         "f(u, " + std::to_string(rank) + ")\n"
         "return 'ok'\n";
-    Act(std::move(code), "已申请升到 " + std::to_string(rank) + " 星：在游戏里选职业后生效");
+    Act(std::move(code), std::to_string(rank) + "성 승급을 요청했습니다. 게임에서 직업을 선택하면 적용됩니다.");
 }

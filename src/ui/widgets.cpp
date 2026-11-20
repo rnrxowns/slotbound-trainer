@@ -2,6 +2,7 @@
 
 #include <windows.h>
 
+#include <algorithm>
 #include <cfloat>
 #include <cstdio>
 
@@ -20,12 +21,12 @@ std::string ToUtf8(const std::wstring& s)
 std::string KeyName(int vk)
 {
     switch (vk) {
-    case 0: return "无";
-    case VK_LBUTTON: return "鼠标左键";
-    case VK_RBUTTON: return "鼠标右键";
-    case VK_MBUTTON: return "鼠标中键";
-    case VK_XBUTTON1: return "鼠标侧键1";
-    case VK_XBUTTON2: return "鼠标侧键2";
+    case 0: return "미지정";
+    case VK_LBUTTON: return "마우스 왼쪽";
+    case VK_RBUTTON: return "마우스 오른쪽";
+    case VK_MBUTTON: return "마우스 가운데";
+    case VK_XBUTTON1: return "마우스 측면 1";
+    case VK_XBUTTON2: return "마우스 측면 2";
     case VK_SHIFT: return "Shift";
     case VK_CONTROL: return "Ctrl";
     case VK_MENU: return "Alt";
@@ -37,13 +38,13 @@ std::string KeyName(int vk)
     case VK_PRIOR: return "PageUp";
     case VK_NEXT: return "PageDown";
     }
-    char buf[16];
+    char buf[32];
     if (vk >= VK_F1 && vk <= VK_F24)
         snprintf(buf, sizeof(buf), "F%d", vk - VK_F1 + 1);
     else if ((vk >= '0' && vk <= '9') || (vk >= 'A' && vk <= 'Z'))
         snprintf(buf, sizeof(buf), "%c", vk);
     else if (vk >= VK_NUMPAD0 && vk <= VK_NUMPAD9)
-        snprintf(buf, sizeof(buf), "小键盘%d", vk - VK_NUMPAD0);
+        snprintf(buf, sizeof(buf), "숫자패드 %d", vk - VK_NUMPAD0);
     else
         snprintf(buf, sizeof(buf), "0x%02X", vk);
     return buf;
@@ -54,7 +55,8 @@ bool ToggleSwitch(const char* label, bool* v, const char* tooltip)
     const float scale = Scale();
     const float height = ImGui::GetFrameHeight() * 0.78f;
     const float width = height * 1.9f;
-    const float labelWidth = 200.0f * scale;
+    const ImVec2 textSize = ImGui::CalcTextSize(label);
+    const float labelWidth = std::max(200.0f * scale, textSize.x + ImGui::GetStyle().ItemSpacing.x);
     ImGui::PushID(label);
     const ImVec2 start = ImGui::GetCursorScreenPos();
     const float rowHeight = ImGui::GetFrameHeight();
@@ -67,7 +69,6 @@ bool ToggleSwitch(const char* label, bool* v, const char* tooltip)
 
     ImDrawList* draw = ImGui::GetWindowDrawList();
     const ImVec4* colors = ImGui::GetStyle().Colors;
-    const ImVec2 textSize = ImGui::CalcTextSize(label);
     draw->AddText(ImVec2(start.x, start.y + (rowHeight - textSize.y) * 0.5f), ImGui::GetColorU32(ImGuiCol_Text), label);
 
     const ImVec2 p0(start.x + labelWidth, start.y + (rowHeight - height) * 0.5f);
@@ -98,10 +99,11 @@ void KeyBinder(const char* label, int& vk, bool optional)
     ImGui::PushID(label);
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted(label);
-    ImGui::SameLine(200.0f * Scale());
+    ImGui::SameLine(std::max(200.0f * Scale(),
+        ImGui::CalcTextSize(label).x + ImGui::GetStyle().ItemSpacing.x));
 
     if (waitingFor == label) {
-        ImGui::Button("请按键…  (Esc 取消)");
+        ImGui::Button("키를 누르세요 (Esc로 취소)");
         if (waitRelease && !leftDown)
             waitRelease = false;
         for (int key = VK_LBUTTON; key <= 0xFE && !waitRelease; ++key) {
@@ -121,7 +123,7 @@ void KeyBinder(const char* label, int& vk, bool optional)
         suppressClick = nullptr;
     if (optional && vk && waitingFor != label) {
         ImGui::SameLine();
-        if (ImGui::SmallButton("清除"))
+        if (ImGui::SmallButton("지우기"))
             vk = 0;
     }
     ImGui::PopID();
@@ -129,14 +131,14 @@ void KeyBinder(const char* label, int& vk, bool optional)
 
 bool LevelCombo(const char* id, int& level, int maxLevel)
 {
-    char preview[16];
-    snprintf(preview, sizeof(preview), "%d 级", level);
+    char preview[24];
+    snprintf(preview, sizeof(preview), "%d레벨", level);
     bool changed = false;
     ImGui::SetNextItemWidth(-FLT_MIN);
     if (ImGui::BeginCombo(id, preview)) {
         for (int i = 1; i <= maxLevel; ++i) {
-            char label[16];
-            snprintf(label, sizeof(label), "%d 级", i);
+            char label[24];
+            snprintf(label, sizeof(label), "%d레벨", i);
             if (ImGui::Selectable(label, level == i) && level != i) {
                 level = i;
                 changed = true;
@@ -159,14 +161,20 @@ void SameLineIfFits(const char* nextLabel)
 
 void ErrorText(const std::string& text)
 {
-    if (!text.empty())
+    if (!text.empty()) {
+        ImGui::PushTextWrapPos();
         ImGui::TextColored(kRed, "%s", text.c_str());
+        ImGui::PopTextWrapPos();
+    }
 }
 
 void HintText(const std::string& text)
 {
-    if (!text.empty())
+    if (!text.empty()) {
+        ImGui::PushTextWrapPos();
         ImGui::TextDisabled("%s", text.c_str());
+        ImGui::PopTextWrapPos();
+    }
 }
 
 const std::string& LevelText(const std::vector<std::string>& levels, int level)
@@ -183,9 +191,9 @@ void LevelsTooltip(const std::vector<std::string>& levels, const char* const* le
     ImGui::PushTextWrapPos(420.0f * Scale());
     for (int i = 1; i <= static_cast<int>(levels.size()); ++i) {
         if (levelNames)
-            ImGui::Text("%s 级：%s", levelNames[i], levels[i - 1].c_str());
+            ImGui::Text("%s단계:%s", levelNames[i], levels[i - 1].c_str());
         else
-            ImGui::Text("%d 级：%s", i, levels[i - 1].c_str());
+            ImGui::Text("%d단계:%s", i, levels[i - 1].c_str());
     }
     ImGui::PopTextWrapPos();
     ImGui::EndTooltip();
@@ -194,7 +202,7 @@ void LevelsTooltip(const std::vector<std::string>& levels, const char* const* le
 bool GroupHeader(const char* name, const ImVec4& color, int count, const char* id)
 {
     char header[96];
-    snprintf(header, sizeof(header), "%s（%d）###%s", name, count, id);
+    snprintf(header, sizeof(header), "%s (%d)###%s", name, count, id);
     ImGui::PushStyleColor(ImGuiCol_Text, color);
     const bool open = ImGui::CollapsingHeader(header, ImGuiTreeNodeFlags_DefaultOpen);
     ImGui::PopStyleColor();
@@ -211,9 +219,9 @@ void SlotPicker(int& target, int value, int number)
 void TargetSlotHint(int target)
 {
     if (target > 0)
-        ImGui::TextColored(kAmber, "点「用这个」会替换第 %d 个", target);
+        ImGui::TextColored(kAmber, "적용하면 %d번 슬롯을 교체합니다.", target);
     else
-        ImGui::TextDisabled("点「用这个」会新增一个");
+        ImGui::TextDisabled("적용하면 새 슬롯에 추가합니다.");
 }
 
 } // namespace ui

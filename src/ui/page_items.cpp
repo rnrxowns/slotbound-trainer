@@ -16,14 +16,16 @@ void DrawInventory(ItemEditor& editor)
 {
     const float scale = Scale();
     const auto& inv = editor.Inventory();
-    SectionTitle("背包");
-    ImGui::Text("%d 件 / %d 格", static_cast<int>(inv.size()), editor.Capacity());
+    SectionTitle("가방");
+    ImGui::Text("아이템 %d개 / 가방 %d칸", static_cast<int>(inv.size()), editor.Capacity());
     if (static_cast<int>(inv.size()) > editor.Capacity()) {
-        ImGui::SameLine();
-        ImGui::TextColored(kAmber, "比格子多：界面可能显示不全，商店也买不了新物品（买重复的升级照常）");
+        ImGui::PushTextWrapPos(0.0f);
+        ImGui::TextColored(kAmber, "가방 용량을 초과했습니다. 일부 아이템은 화면에 표시되지 않을 수 있습니다. "
+                                   "상점에서는 보유 중인 아이템의 강화만 가능합니다.");
+        ImGui::PopTextWrapPos();
     }
     if (ImGui::BeginTable("inv", 4, kSlotTable)) {
-        ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 110.0f * scale);
+        ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 150.0f * scale);
         ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 70.0f * scale);
         ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 40.0f * scale);
@@ -32,7 +34,9 @@ void DrawInventory(ItemEditor& editor)
             ImGui::TableNextRow();
             ImGui::PushID(o.index);
             ImGui::TableNextColumn();
+            ImGui::PushTextWrapPos(0.0f);
             ImGui::TextColored(d ? ItemRarity(d->rarity).color : kRed, "%s", d ? d->name.c_str() : o.id.c_str());
+            ImGui::PopTextWrapPos();
             ImGui::TableNextColumn();
             int level = o.level;
             ImGui::BeginDisabled(editor.Busy());
@@ -44,7 +48,7 @@ void DrawInventory(ItemEditor& editor)
                 ImGui::TextWrapped("%s", LevelText(d->levels, o.level).c_str());
             ImGui::TableNextColumn();
             ImGui::BeginDisabled(editor.Busy());
-            if (ImGui::SmallButton("删除"))
+            if (ImGui::SmallButton("삭제###remove"))
                 editor.Remove(o.index, o.id);
             ImGui::EndDisabled();
             ImGui::PopID();
@@ -52,9 +56,12 @@ void DrawInventory(ItemEditor& editor)
         ImGui::EndTable();
     }
     if (inv.empty())
-        ImGui::TextDisabled("背包是空的");
+        ImGui::TextDisabled("가방이 비어 있습니다.");
     HintText(editor.Message());
-    ImGui::TextDisabled("等级最高到该物品的满级（游戏的数值表只有这么多级）。删除不退水晶。效果战斗中实时生效，存档会保存");
+    ImGui::PushTextWrapPos(0.0f);
+    ImGui::TextDisabled("아이템별 최대 레벨까지 설정할 수 있습니다. 삭제한 아이템의 정수는 돌려받을 수 없습니다. "
+                        "변경은 전투 중에도 즉시 적용되며 저장 데이터에 기록됩니다.");
+    ImGui::PopTextWrapPos();
 }
 
 void DrawCatalogRow(ItemEditor& editor, const Def& d, int& level)
@@ -64,23 +71,25 @@ void DrawCatalogRow(ItemEditor& editor, const Def& d, int& level)
     ImGui::TableNextRow();
     ImGui::PushID(d.id.c_str());
     ImGui::TableNextColumn();
+    ImGui::PushTextWrapPos(0.0f);
     ImGui::TextColored(style.color, "%s", d.name.c_str());
-    ImGui::TextDisabled("%s · %s · %d 水晶", d.type.c_str(), style.name, d.price);
+    ImGui::TextDisabled("%s · %s · 정수 %d", d.type.c_str(), style.name, d.price);
     if (!d.unlocked)
-        ImGui::TextColored(kAmber, "升级树没解锁");
+        ImGui::TextColored(kAmber, "강화 트리 미해금");
     if (!d.stage.empty())
-        ImGui::TextDisabled("第 %s 关的物品", d.stage.c_str());
+        ImGui::TextDisabled("스테이지 %s 아이템", d.stage.c_str());
+    ImGui::PopTextWrapPos();
     ImGui::TableNextColumn();
     ImGui::TextWrapped("%s", LevelText(d.levels, level).c_str());
     if (d.levels.size() > 1)
         LevelsTooltip(d.levels);
     if (ownedLevel > 0)
-        ImGui::TextColored(kGreen, "背包里有，%d 级", ownedLevel);
+        ImGui::TextColored(kGreen, "보유 중 · 레벨 %d", ownedLevel);
     ImGui::TableNextColumn();
     LevelCombo("##lv", level, d.maxLevel);
     ImGui::TableNextColumn();
     ImGui::BeginDisabled(editor.Busy() || ownedLevel == level);
-    if (ImGui::SmallButton(ownedLevel > 0 ? "改成这级" : "放进背包"))
+    if (ImGui::SmallButton(ownedLevel > 0 ? "레벨 변경###set_level" : "가방에 추가###add"))
         editor.Add(d.id, level);
     ImGui::EndDisabled();
     ImGui::PopID();
@@ -89,13 +98,14 @@ void DrawCatalogRow(ItemEditor& editor, const Def& d, int& level)
 void DrawCatalog(ItemEditor& editor, ItemsUi& ui)
 {
     const float scale = Scale();
-    SectionTitle("全部物品");
+    SectionTitle("모든 아이템");
     ImGui::SetNextItemWidth(200.0f * scale);
-    ImGui::InputTextWithHint("##filter", "搜索名字 / 效果", ui.filter, sizeof(ui.filter));
-    ImGui::SameLine();
-    ImGui::TextDisabled("已有的会直接改成选的等级；没解锁、别的关卡的也能放");
+    ImGui::InputTextWithHint("##filter", "이름 또는 효과 검색", ui.filter, sizeof(ui.filter));
+    ImGui::PushTextWrapPos(0.0f);
+    ImGui::TextDisabled("보유한 아이템은 선택한 레벨로 변경합니다. 미해금 아이템과 다른 스테이지의 아이템도 추가할 수 있습니다.");
+    ImGui::PopTextWrapPos();
     if (editor.Catalog().empty()) {
-        ImGui::TextDisabled("正在读物品表…");
+        ImGui::TextDisabled("아이템 목록을 불러오는 중…");
         return;
     }
 
@@ -121,10 +131,10 @@ void DrawCatalog(ItemEditor& editor, ItemsUi& ui)
             continue;
         if (!ImGui::BeginTable(rarity, 4, kListTable))
             continue;
-        ImGui::TableSetupColumn("物品", ImGuiTableColumnFlags_WidthFixed, 120.0f * scale);
-        ImGui::TableSetupColumn("效果", ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableSetupColumn("等级", ImGuiTableColumnFlags_WidthFixed, 70.0f * scale);
-        ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 72.0f * scale);
+        ImGui::TableSetupColumn("아이템", ImGuiTableColumnFlags_WidthFixed, 150.0f * scale);
+        ImGui::TableSetupColumn("효과", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("레벨", ImGuiTableColumnFlags_WidthFixed, 72.0f * scale);
+        ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 94.0f * scale);
         for (const Def& d : editor.Catalog())
             if (d.rarity == rarity && matches(d))
                 DrawCatalogRow(editor, d, pickedLevel(d));
@@ -137,13 +147,13 @@ void DrawCatalog(ItemEditor& editor, ItemsUi& ui)
 
 void DrawItemsPage(MenuContext& ctx)
 {
-    if (!DrawBridgeBar(ctx, "物品"))
+    if (!DrawBridgeBar(ctx, "아이템 편집"))
         return;
     ctx.pages.shown.items = true;
     ItemEditor& editor = ctx.pages.items;
     ErrorText(editor.Error());
     if (!editor.Loaded()) {
-        ImGui::TextDisabled("正在读背包…");
+        ImGui::TextDisabled("가방을 불러오는 중…");
         return;
     }
     DrawInventory(editor);

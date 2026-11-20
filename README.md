@@ -1,130 +1,86 @@
-# 转运军团（Slotbound）修改器
+# Slotbound 트레이너 한국어판
 
-外部程序：读写游戏进程内存，透明覆盖层画菜单（定制主题的 Dear ImGui + D3D11）。
-**不注入 DLL、不改游戏代码、不改游戏文件**，只改一个 Lua 全局变量。
+Slotbound를 창 모드 또는 테두리 없는 창 모드로 실행할 때 사용할 수 있는 Windows x64 트레이너입니다. Dear ImGui와 D3D11으로 게임 위에 메뉴와 상태를 표시합니다. 자원 탭은 게임 프로세스에서 Lua 전역 값을 직접 읽고 쓰며, 유닛·아이템·슬롯머신 탭은 내장 DLL을 통해 게임의 Lua 기능을 호출합니다.
 
-## 功能
+## 기능
 
-| 功能 | 说明 |
+| 탭 | 기능 |
 | --- | --- |
-| 显示金币 | 左上角状态栏实时显示 |
-| 改金币 | 菜单「资源」页：输入数值「改成这个数」，或 +100 / +1000 / +10000 |
-| 锁定金币 | 花掉的金币马上补回锁定值 |
-| 快捷键加金币 | 每按一次加「每次加」设的数，默认不绑键 |
-| 旋转次数 | 和金币一样：显示 / 改成 / +1 +5 +10 / 锁定 / 快捷键 |
-| 水晶 | 同上（Lua 全局 `jungsu`） |
-| 物品 | 「物品」页：背包里的物品改等级（1～满级）/ 删除；63 件物品（含没解锁、别的关卡的）直接放进背包，不花水晶。**需要注入** |
-| 老虎机 | 「老虎机」页：大奖模式开关，打开后每次拉杆都是 9 格同一兵种（可选 6 个兵种、小丑，或每次随机），显示当前结果。**需要注入** |
-| 单位 | 「单位」页：选中单位的星级（走游戏升星流程，选职业后生效）、吸收 LV（可升可降）、基础属性（生命 / 攻击 / 攻速 / 射程，一直有效，战斗中当场生效）、主动技能冷却（最短 0.1 秒）、条件触发的被动技能的触发条件（普攻几次触发 / 触发概率 / 内置冷却）——这两项存档里一直有效，需开着修改器；下分两个子页。**需要注入**，见下 |
-| └ 词条 | 看选中单位的词条，替换 / 删除 / 新增（不限个数，默认新增），32 个词条全列出，可选数值档位 |
-| └ 觉醒 | 看选中单位的觉醒（头像下 I / II / III 那排），新增 / 替换 / 删除本职业的 12 个候选；选几个每个就是几级，选满 5 个 = 全部 V 级 |
-| └ 刻印 | 看选中单位的刻印，替换 / 删除 / 新增、直接改等级（1～5），改刻印槽数，33 个刻印每级效果全列出 |
+| 자원 | 골드·남은 회전 횟수·정수를 표시하고, 원하는 값으로 변경하거나 지정 값으로 고정할 수 있습니다. 빠른 추가 버튼과 자원별 단축키를 지원합니다. 골드는 +100, +1,000, +10,000이며 나머지는 +1, +5, +10입니다. |
+| 유닛 | 선택한 유닛의 별 개수, 흡수 레벨, 체력·공격력·공격 속도·사거리를 변경합니다. 승급은 게임 안에서 직업을 선택해야 확정됩니다. 액티브 스킬 재사용 대기시간은 최소 0.1초까지 줄일 수 있으며, 조건부 패시브 스킬의 기본 공격 횟수·발동 확률·내부 재사용 대기시간도 조정할 수 있습니다. 스킬 설정을 적용하려면 트레이너가 실행 중이어야 합니다. |
+| 유닛 → 특성 | 특성 32종의 효과 수치와 등급을 확인하고, 선택한 유닛에 추가하거나 기존 특성을 교체·삭제합니다. |
+| 유닛 → 각인 | 각인 33종의 레벨별 효과를 확인하고, 추가·교체·삭제, 1~5레벨 변경, 각인 슬롯 수 조정을 할 수 있습니다. |
+| 유닛 → 각성 | 선택한 직업의 각성 후보 12개를 추가·교체·삭제합니다. 각성 레벨은 선택 수와 같으며, 5개를 선택하면 모두 V레벨입니다. |
+| 아이템 | 가방에 있는 아이템의 레벨을 변경하거나 아이템을 삭제합니다. 미해금 아이템과 다른 스테이지의 아이템을 포함한 63종을 정수 소모 없이 추가할 수 있습니다. |
+| 슬롯머신 | 잭팟 모드에서 매번 9칸을 같은 기호로 맞춥니다. 유닛 기호 6종, 광대 또는 무작위를 선택하고 현재 결과를 확인할 수 있습니다. |
+| 진단 | 게임 연결 상태, 자원 탐색 기록과 DLL 상태를 확인합니다. |
+| 설정 | 단축키와 화면 표시를 설정합니다. |
 
-### 注入（「单位」「老虎机」页用）
+유닛·아이템·슬롯머신 기능을 사용하려면 메뉴에서 **DLL 주입**을 선택합니다. 트레이너는 실행 파일에 포함된 `slotbound_lua.dll`을 `%LOCALAPPDATA%\slotbound-trainer\slotbound_lua_<내용 해시>.dll`에 추출합니다. 해당 DLL을 게임에 로드하면 트레이너가 보낸 Lua 코드를 게임 메인 스레드에서 처리할 수 있습니다. 메뉴에서 DLL을 해제하거나 게임을 종료하면 주입이 해제됩니다. DLL 추출 파일명은 내용이 바뀔 때마다 달라지므로, 실행 중인 게임이 사용하는 이전 파일과 충돌하지 않습니다.
 
-改老虎机结果、词条、刻印要在游戏里执行 Lua，外部读写内存做不到，所以这几页需要先点「注入」：把 `slotbound_lua.dll` 加载进游戏，
-它把 `love.dll` 导入表里 `lua51.dll!lua_pushnumber` 的指针换成自己的函数，在游戏主线程上执行修改器发来的 Lua 代码
-（命名管道 `\\.\pipe\slotbound_lua`），执行完把 Lua 栈恢复原样。只改这一个指针，不改代码字节、不改游戏文件；
-点「卸载注入」或关游戏就恢复。金币 / 旋转 / 水晶不需要注入。
+웨이브, 기지 체력, 프리즘 확률은 원본의 계획 문서에 기록되어 있습니다. [개발 계획](docs/plan.md)
 
-`slotbound_lua.dll` 编在修改器 exe 里面，点「注入」时释放到 `%LOCALAPPDATA%\slotbound-trainer\slotbound_lua_<内容哈希>.dll` 再加载；
-同一版本只释放一次，新版本换新文件名（旧的那份游戏可能还占着，不覆盖）。
+## 실행
 
-命令行工具（开发用）：`slotbound_inject.exe load|unload`、`slotbound_luacmd.exe "return coins"` / `-f 脚本.lua`。
-修改器注入的是释放出来的那份，`build\Release\slotbound_lua.dll` 只有用 `slotbound_inject.exe` 注入时才会被游戏占用。
+1. 게임을 창 모드 또는 테두리 없는 창 모드로 설정합니다. 독점 전체 화면에서는 오버레이가 가려질 수 있습니다.
+2. `slotbound_trainer_ko.exe`를 실행합니다. 게임과 트레이너는 어느 쪽을 먼저 실행해도 됩니다. 트레이너는 1초에 한 번 `Slotbound.exe`를 찾습니다.
+3. 게임을 시작하고 화면 왼쪽 위에 골드 수치가 나타나는지 확인합니다. 메인 메뉴에서 골드 변수를 찾지 못하면 트레이너가 5초마다 다시 탐색합니다.
+4. **Insert**를 눌러 메뉴를 엽니다.
 
-还没做：波次、基地血量、棱彩概率，见 [docs/plan.md](docs/plan.md)。
-
-## 用法
-
-1. 游戏开「窗口」或「无边框窗口」模式（独占全屏会盖住覆盖层）。
-2. 运行 `slotbound_trainer.exe`，先开游戏还是先开修改器都行，它每秒找一次 `Slotbound.exe`。
-3. 进到一局里，状态栏出现「金币 N」就是找到了（约 0.5 秒）。主菜单里没有金币变量，会每 5 秒重找一次。
-
-| 默认按键 | 作用 |
+| 기본 키 | 동작 |
 | --- | --- |
-| Insert | 打开/关闭菜单 |
-| F12 | 总开关（急停：停止锁定，改金币按钮变灰） |
-| F10 | 隐藏/显示覆盖层 |
-| End | 退出修改器 |
+| Insert | 메뉴 열기·닫기 |
+| F12 | 전체 기능 켜기·끄기. 기능을 끄면 값 고정과 편집이 중지됩니다. |
+| F10 | 오버레이 표시·숨기기 |
+| End | 트레이너 종료 |
 
-按键在菜单「设置」页改，改动 0.5 秒后自动存进 `trainer.ini`。
+**설정** 탭에서 기본 키를 바꾸거나 자원 단축키를 지정할 수 있습니다. 단축키를 포함한 설정은 마지막 변경 약 0.5초 뒤에 실행 파일 옆 `trainer.ini`에 저장됩니다. 파일이 없으면 기본값을 사용합니다. 변경한 자원 값은 트레이너를 종료해도 되돌아가지 않습니다. 게임 저장 폴더는 `%APPDATA%\slotbound_full`이며, Steam 클라우드를 사용하면 수정된 저장 데이터도 동기화될 수 있습니다.
 
-**退出修改器时不会把金币改回去**——改出来的金币本来就是想留着的。
+## 한국어 표시
 
-## 下载
+트레이너는 Windows의 맑은 고딕을 우선 사용하며, 맑은 고딕이 없으면 굴림이나 바탕을 찾습니다. 게임에서 불러오는 아이템·특성·각인·각성·스킬의 이름 및 효과는 게임 데이터의 한국어를 우선 사용합니다. 한국어가 없는 항목은 게임의 현재 언어, 중국어 또는 게임에서 제공한 이름·설명으로 표시될 수 있습니다. 게임이나 Lua 런타임에서 반환하는 원문 오류도 그대로 표시될 수 있습니다.
 
-便携版只有一个文件 `slotbound_trainer.exe`（注入用的 DLL 已经编在里面），放哪都能直接运行。
-设置存在 exe 旁边的 `trainer.ini`：没有就用默认值，第一次改设置时自动生成。
+한국어판은 실제 게임에서 각 기능의 적용 결과를 확인하는 테스트를 거치지 않았습니다.
 
-- GitHub Actions 每次推送到 `main` 都会编一份：Actions 页面 → 对应的 build 运行 → Artifacts 里下载（网页下载会套一层 zip），
-  或 `gh run download <运行号> -R GGGLHHH/slotbound-trainer`。
-- 推 `v*` 标签（如 `git tag v0.2.0 && git push origin v0.2.0`）会自动发 Release，直接附上 exe。
+## 다운로드 및 빌드
 
-## 编译
+GitHub에서 이 저장소의 **Actions → build → 빌드 실행 → Artifacts**로 이동해 압축 파일을 내려받습니다. CLI에서는 `gh run download <실행 번호> -R <소유자>/<저장소>`로 다운로드할 수 있습니다. 아티팩트 안의 `slotbound_trainer_ko.exe`가 배포용 실행 파일이며 DLL을 포함합니다.
+
+워크플로는 `main`·`korean-localization` 브랜치의 푸시, Pull Request 또는 수동 실행 시 `windows-2022`에서 x64 Release를 빌드합니다. `v*` 태그를 푸시하면 GitHub Release에도 실행 파일이 첨부됩니다.
+
+로컬에서 빌드하려면 Visual Studio 2022의 **C++를 사용한 데스크톱 개발** 워크로드와 CMake가 필요합니다.
 
 ```powershell
-.\build.ps1          # 开发版，读 config\trainer.ini
-.\build.ps1 -Dist    # 便携版 → dist\slotbound_trainer.exe 单文件（CI 也是跑这个）
+.\build.ps1          # 개발용 Release. config\trainer.ini 사용
+.\build.ps1 -Debug   # 개발용 Debug
+.\build.ps1 -Dist    # 배포용 Release. dist\slotbound_trainer_ko.exe 생성
 ```
 
-需要 VS 2022（带 C++ 桌面开发）。产物在 `build\Release\`：
+개발용 Release 결과물은 `build\Release`에 생성됩니다.
 
-- `slotbound_trainer.exe`：修改器本体
-- `slotbound_lua.dll` / `slotbound_inject.exe` / `slotbound_luacmd.exe`：注入用的 DLL（也编进了修改器 exe）、命令行注入 / 卸载、命令行执行 Lua（开发用）
-- `slotbound_probe.exe`：命令行定位工具，排查用
+- `slotbound_trainer_ko.exe`는 트레이너입니다.
+- `slotbound_lua.dll`은 Lua 브리지입니다. 트레이너에도 내장됩니다.
+- `slotbound_inject.exe load|unload`는 개발용 DLL 주입·해제 도구입니다.
+- `slotbound_luacmd.exe "return coins"` 또는 `slotbound_luacmd.exe -f script.lua`는 개발용 Lua 실행 도구입니다.
+- `slotbound_probe.exe`는 자원 위치와 현재 값을 확인하는 진단 도구입니다.
 
 ```powershell
-.\build\Release\slotbound_probe.exe coins --neighbor displayCoins            # 只读：找到并打印金币
-.\build\Release\slotbound_probe.exe coins --neighbor displayCoins --set 5000 # 写入并读回
+.\build\Release\slotbound_probe.exe coins --neighbor displayCoins
+.\build\Release\slotbound_probe.exe coins --neighbor displayCoins --set 5000
 ```
 
-## 原理（一句话）
+## 소스 구성
 
-游戏是 LÖVE 引擎（LuaJIT 2.1），金币是 Lua 全局变量 `coins`。修改器在游戏堆里找到 `"coins"` 这个字符串对象，
-再找键指向它的哈希节点，用旁边的全局变量 `displayCoins` 认出哪个是 `_G` 里的那一个，然后直接读写节点里的 double。
-地址每次开游戏都变、`_G` 扩容时还会搬家，所以不存地址，每帧核对一次键还对不对，不对就重新找。
-细节见 [docs/findings.md](docs/findings.md)。
+| 경로 | 역할 |
+| --- | --- |
+| `src/main.cpp` | 게임 연결, 단축키, 설정 자동 저장, 오버레이 갱신 |
+| `src/app/` | `trainer.ini`와 전역 단축키 |
+| `src/core/` | 게임 프로세스 연결, Lua 전역 값 탐색, 자원 변경·고정, 진단 도구 |
+| `src/bridge/` | 내장 DLL, DLL 주입·해제, 이름 있는 파이프 통신 |
+| `src/game/` | 유닛·특성·각인·각성·아이템 편집 및 슬롯머신 제어 |
+| `src/ui/` | 오버레이, 메뉴, 탭, 공용 컨트롤과 표시 이름 |
+| `config/trainer.example.ini` | 설정 파일 예시 |
 
-## 为什么在这款游戏上做是 OK 的
+새 탭은 `src/ui/pages.h`에 선언하고, 담당 소스에 구현한 뒤 `src/ui/menu.cpp`의 `kTabs`에 등록합니다. 게임 데이터 편집 기능에는 `LuaEditor`를 사용합니다. 목록 조회가 필요한 편집기는 `CatalogCode`와 `OnCatalog`를 구현하며, 상태 폴링에는 `PollCode`와 `OnPoll`을 사용합니다. 메뉴 표시 상태에 따른 갱신은 `ui::LuaPages::Update`에서 관리합니다.
 
-- **纯单机**：没有联机对战、排行榜对比、交易市场，改自己的金币不影响任何其他玩家。
-- **没有反作弊**：进程里没有反作弊模块，修改器只用 `ReadProcessMemory` / `WriteProcessMemory`，不绕过任何保护。
-- **不碰正版验证**：不改 exe、不改游戏文件、不动 Steam 相关的任何东西；游戏照常要正版才能玩。
-- **只改数据**：金币 / 旋转 / 水晶只写数值；词条 / 刻印功能要注入一个 DLL（用户 2026-11-14 同意），只在游戏里执行 Lua 改单位数据，不改游戏代码和文件。
-- **自己的电脑、自己的存档**：建议改之前备份存档目录 `%APPDATA%\slotbound_full\`（`save_fallback.dat` 等）。
-  这个目录开了 Steam 云同步（有 `steam_autocloud.vdf`），改过的存档会同步到云上，想留一份干净的就先备份。
-  锁定金币可能让一局失去挑战性，想正常玩时关掉锁定即可。
-
-## 目录
-
-```
-src/
-  main.cpp            主循环：连游戏、快捷键、自动保存、按需重画覆盖层
-  app/                config.*（trainer.ini 读写）、hotkeys.h（全局快捷键）
-  core/               外部读写，不注入
-    process.*           进程连接、读写（写权限按需申请）
-    luajit.*            LuaJIT 2.1 GC64 内存布局 + 按名字定位全局变量
-    luavar.*            一个 Lua 全局数值（金币 / 旋转 / 水晶）：后台定位、每帧核对、改 / 锁
-    probe.cpp           命令行定位工具
-  bridge/             注入：bridge_dll.cpp（游戏里的 DLL）、injector.*、luaclient.*（命名管道）、embedded_dll.*
-  game/               经 Lua 桥改游戏数据
-    lua_editor.*        编辑器公共骨架：目录（读一次）+ 轮询（0.5 秒）+ 改动（一次一个）
-    luaops.h            Lua 片段和小工具：选中单位、技能 hook、引号转义、图标文字
-    options / imprints / awakening / unitlevel / items   词条、刻印、觉醒、等级属性技能、物品
-    slotctl.*           老虎机大奖模式
-  ui/                 界面
-    overlay.*           透明覆盖层（D3D11 + ImGui，定制主题）
-    widgets.*           通用控件（开关、按键绑定、等级下拉框、分组标题…）
-    labels.*            品级 / 稀有度 / 老虎机符号 → 中文和颜色
-    menu.*              菜单窗口、各页的刷新调度
-    page_*.cpp          资源、单位、物品、老虎机、诊断 / 设置
-    unit_*.cpp          单位页下的词条、刻印、觉醒子页
-config/trainer.example.ini
-docs/plan.md      分阶段计划
-docs/findings.md  逆向记录
-```
-
-加一页：`ui/pages.h` 声明画法、在 `ui/page_xxx.cpp` 里实现、`ui/menu.cpp` 的 `kTabs` 加一行；
-要读写游戏数据就在 `game/` 里继承 `LuaEditor`，写 `PollCode` / `OnPoll`（有目录再写 `CatalogCode` / `OnCatalog`），
-然后在 `ui::LuaPages` 里加成员、`LuaPages::Update` 里按页面可见性调 `Update`。
+자원 탐색은 LÖVE 엔진의 LuaJIT 전역 테이블을 사용합니다. 예를 들어 `coins`의 해시 노드를 찾은 뒤 인접한 `displayCoins` 필드를 이용해 전역 테이블의 값을 식별합니다. 게임을 다시 실행하거나 전역 테이블 크기가 바뀌면 주소가 달라지므로, 사용 전에 노드를 확인하고 필요하면 다시 탐색합니다. [원본 기술 조사](docs/findings.md)

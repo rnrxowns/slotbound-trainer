@@ -39,7 +39,7 @@ protected:
 
     // 目录：没有目录的编辑器不用管。CatalogCode 返回 nullptr = 没有目录
     virtual const char* CatalogCode() const { return nullptr; }
-    virtual const char* CatalogName() const { return "目录"; }
+    virtual const char* CatalogName() const { return "목록"; }
     virtual void OnCatalog(const std::string& text) { (void)text; }
 
     // 改动的回复 → 失败提示；空串 = 成功

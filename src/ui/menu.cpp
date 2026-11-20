@@ -2,6 +2,8 @@
 
 #include "menu.h"
 
+#include <algorithm>
+
 #include "pages.h"
 #include "widgets.h"
 
@@ -9,14 +11,14 @@ namespace ui {
 
 void LuaPages::Update(bool menuOpen, bool injected, const Config& cfg)
 {
-    // 菜单关着就不去游戏里读（省游戏主线程的时间）；老虎机例外，见下
+    // 메뉴가 닫혀 있으면 슬롯머신을 제외한 게임 데이터를 읽지 않습니다.
     const bool ready = menuOpen && injected;
     unit.Update(ready && shown.unit);
     options.Update(ready && shown.unit && shown.options);
     imprints.Update(ready && shown.unit && shown.imprints);
     awakening.Update(ready && shown.unit && shown.awakening);
     items.Update(ready && shown.items);
-    // 老虎机控制不管菜单开没开都要保持（每秒检查包装还在不在）
+    // 메뉴가 닫혀 있어도 슬롯머신 상태를 확인합니다.
     slot.Update(injected, cfg.enabled && cfg.slotJackpot, cfg.slotSymbol);
 }
 
@@ -25,23 +27,28 @@ bool DrawMenu(MenuContext& ctx)
     bool keepRunning = true;
     const float scale = Scale();
     ctx.pages.shown = {};
-    ImGui::SetNextWindowSize(ImVec2(640.0f * scale, 0.0f), ImGuiCond_Always);
-    ImGui::SetNextWindowPos(ImVec2(80.0f * scale, 200.0f * scale), ImGuiCond_FirstUseEver);
-    ImGui::Begin("转运军团 修改器", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings);
+    const ImVec2 display = ImGui::GetIO().DisplaySize;
+    const float margin = 12.0f * scale;
+    const float width = std::clamp(display.x - 2.0f * margin, 1.0f, 740.0f * scale);
+    const float left = std::max(margin, std::min(80.0f * scale, display.x - width - margin));
+    const float top = std::clamp(display.y * 0.18f, margin, 160.0f * scale);
+    ImGui::SetNextWindowSize(ImVec2(width, 0.0f), ImGuiCond_Always);
+    ImGui::SetNextWindowPos(ImVec2(left, top), ImGuiCond_FirstUseEver);
+    ImGui::Begin("Slotbound 트레이너", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings);
 
-    ToggleSwitch("总开关", &ctx.cfg.enabled, "急停：停止所有锁定，修改按钮也不能用");
+    ToggleSwitch("전체 기능", &ctx.cfg.enabled, "끄면 값 잠금이 해제되며 수정 버튼을 사용할 수 없습니다.");
 
     struct Tab {
         const char* name;
         void (*draw)(MenuContext&);
     };
     static const Tab kTabs[] = {
-        { "资源", [](MenuContext& c) { DrawResourcesPage(c.cfg, c.vars); } },
-        { "单位", DrawUnitPage },
-        { "物品", DrawItemsPage },
-        { "老虎机", DrawSlotPage },
-        { "诊断", DrawDiagnosticsPage },
-        { "设置", DrawSettingsPage },
+        { "자원", [](MenuContext& c) { DrawResourcesPage(c.cfg, c.vars); } },
+        { "유닛", DrawUnitPage },
+        { "아이템", DrawItemsPage },
+        { "슬롯머신", DrawSlotPage },
+        { "진단", DrawDiagnosticsPage },
+        { "설정", DrawSettingsPage },
     };
     if (ImGui::BeginTabBar("tabs")) {
         for (const Tab& tab : kTabs) {
@@ -54,12 +61,14 @@ bool DrawMenu(MenuContext& ctx)
     }
 
     ImGui::Separator();
-    ImGui::TextDisabled("%s%s", ToUtf8(ctx.cfgPath).c_str(), ctx.cfgFileFound ? "" : "（不存在，用默认值）");
-    ImGui::TextDisabled("改动会自动保存");
-    if (ImGui::Button("重新读取"))
+    ImGui::PushTextWrapPos();
+    ImGui::TextDisabled("%s%s", ToUtf8(ctx.cfgPath).c_str(), ctx.cfgFileFound ? "" : " (설정 파일 없음. 기본값 사용)");
+    ImGui::TextDisabled("변경 사항은 자동으로 저장됩니다.");
+    ImGui::PopTextWrapPos();
+    if (ImGui::Button("설정 다시 불러오기"))
         ctx.cfgFileFound = LoadConfig(ctx.cfgPath, ctx.cfg);
     ImGui::SameLine();
-    if (ImGui::Button("退出程序"))
+    if (ImGui::Button("트레이너 종료"))
         keepRunning = false;
 
     ImGui::End();

@@ -1,7 +1,7 @@
-# 构建 slotbound_trainer.exe 及注入用的 DLL / 工具。优先用 VS Build Tools 自带的 CMake，没有就用 PATH 里的 cmake（CI）。
-# 用法：.\build.ps1            # Release，配置用仓库里的 config/trainer.ini
+﻿# VS Build Tools에 포함된 CMake를 먼저 찾고, 없으면 PATH에서 찾습니다.
+# 사용법  .\build.ps1          # Release, 저장소의 config/trainer.ini 사용
 #       .\build.ps1 -Debug
-#       .\build.ps1 -Dist      # 便携版 → dist\slotbound_trainer.exe 一个文件（注入 DLL 已内嵌），配置用 exe 旁边的 trainer.ini（改设置时自动生成）
+#       .\build.ps1 -Dist      # DLL을 포함한 단일 EXE, 실행 파일과 같은 폴더에 설정 저장
 param([switch]$Debug, [switch]$Dist)
 
 $ErrorActionPreference = 'Stop'
@@ -16,29 +16,30 @@ if (Test-Path $vswhere) {
 }
 if (-not $cmake) {
     $onPath = Get-Command cmake -ErrorAction SilentlyContinue
-    if (-not $onPath) { throw '找不到 cmake：装 VS Build Tools（含 C++ CMake 工具）或把 cmake 加进 PATH' }
+    if (-not $onPath) { throw 'CMake를 찾을 수 없습니다. C++ CMake 도구가 포함된 VS Build Tools를 설치하거나 CMake를 PATH에 추가하세요.' }
     $cmake = $onPath.Source
 }
 
 $config = if ($Debug -and -not $Dist) { 'Debug' } else { 'Release' }
 $buildDir = if ($Dist) { "$PSScriptRoot\build-dist" } else { "$PSScriptRoot\build" }
 $portable = if ($Dist) { 'ON' } else { 'OFF' }
+$exeName = 'slotbound_trainer_ko.exe'
 
 & $cmake -S $PSScriptRoot -B $buildDir -G 'Visual Studio 17 2022' -A x64 "-DSB_PORTABLE=$portable"
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
-# 便携版不要 slotbound_probe（开发期诊断工具）
+# 배포용 빌드에서는 개발용 진단 도구를 제외합니다.
 $target = if ($Dist) { @('--target', 'slotbound_trainer') } else { @() }
 & $cmake --build $buildDir --config $config @target
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
 if (-not $Dist) {
-    Write-Host "`n产物：$buildDir\$config\slotbound_trainer.exe（另有 slotbound_probe.exe、slotbound_lua.dll 等）"
+    Write-Host "`n빌드 완료  $buildDir\$config\$exeName (같은 폴더에 개발 도구와 DLL 포함)"
     exit 0
 }
 
-# 便携版：只发一个 exe（slotbound_lua.dll 编在里面）。先清掉旧版留下的 DLL / 工具 / 说明，trainer.ini 保留（那是用户的设置）
+# 이전 배포 파일을 정리하되 사용자의 trainer.ini는 보존합니다.
 $distDir = "$PSScriptRoot\dist"
 New-Item -ItemType Directory -Force $distDir | Out-Null
 Get-ChildItem $distDir -File | Where-Object { $_.Name -ne 'trainer.ini' } | Remove-Item -Force
-Copy-Item "$buildDir\$config\slotbound_trainer.exe" $distDir -Force
-Write-Host "`n产物：$distDir\slotbound_trainer.exe（单文件；配置是同目录 trainer.ini，没有就用默认值，改设置时自动生成）"
+Copy-Item "$buildDir\$config\$exeName" $distDir -Force
+Write-Host "`n빌드 완료  $distDir\$exeName (설정을 바꾸면 같은 폴더에 trainer.ini가 생성됩니다.)"

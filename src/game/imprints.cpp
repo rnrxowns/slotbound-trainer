@@ -11,21 +11,22 @@ using namespace luaops;
 // 刻印目录：id  名字  tag  各级效果（| 分隔）
 constexpr const char* kCatalogLua = R"lua(
 local C = require('src.data.constants')
-local Lang = require('src.data.language')
-local loc = Lang[rawget(_G, 'currentGameLang') or 'zh'] or Lang.zh or {}
 local FS = '\31'
 local ids = {}
 for id in pairs(C.imprint.definitions) do ids[#ids+1] = id end
-table.sort(ids, function(a, b) return (loc['imprint.name.' .. a] or a) < (loc['imprint.name.' .. b] or b) end)
+local names = {}
+for _, id in ipairs(ids) do
+  names[id] = textField(localizedText('imprint.name.' .. id, C.imprint.definitions[id].name) or id)
+end
+table.sort(ids, function(a, b) return names[a] < names[b] end)
 local out = {}
 for _, id in ipairs(ids) do
   local d = C.imprint.definitions[id]
   local lv = {}
   for L = 1, #(d.levels or {}) do
-    local s = loc['imprint.desc.' .. id .. '_' .. L] or (d.levels[L] and d.levels[L].desc) or ''
-    lv[#lv+1] = (tostring(s):gsub('[\n|\31]', ' '))
+    lv[#lv+1] = textField(localizedText('imprint.desc.' .. id .. '_' .. L, d.levels[L] and d.levels[L].desc))
   end
-  out[#out+1] = table.concat({ id, loc['imprint.name.' .. id] or tostring(d.name), tostring(d.tag), table.concat(lv, '|') }, FS)
+  out[#out+1] = table.concat({ id, names[id], tostring(d.tag), table.concat(lv, '|') }, FS)
 end
 return table.concat(out, '\n')
 )lua";
@@ -53,7 +54,8 @@ return table.concat(out, '\n')
 
 const char* ImprintEditor::CatalogCode() const
 {
-    return kCatalogLua;
+    static const std::string code = std::string(kLocalizedTextLua) + kCatalogLua;
+    return code.c_str();
 }
 
 void ImprintEditor::OnCatalog(const std::string& text)
@@ -105,7 +107,7 @@ void ImprintEditor::Set(int slot, const std::string& id, int level)
     std::string code = CheckSameUnit(unit_.sym, unit_.rosterIndex) +
         "local C = require('src.data.constants')\n"
         "local d = C.imprint.definitions[" + Quote(id) + "]\n"
-        "if not d then return '没有这个刻印 id' end\n"
+        "if not d then return '해당 ID의 각인을 찾을 수 없습니다.' end\n"
         "local L = math.max(1, math.min(" + std::to_string(level) + ", #(d.levels or {})))\n"
         "local im = u.imprints or {}\n"
         "u.imprints = im\n"
@@ -138,9 +140,9 @@ void ImprintEditor::Set(int slot, const std::string& id, int level)
         "if (u.maxImprintSlots or 1) < #im then u.maxImprintSlots = #im end\n"
         "return 'ok'\n";
     const Def* d = Find(id);
-    const std::string what = "「" + (d ? d->name : id) + " " + std::to_string(level) + " 级」";
-    Act(std::move(code), slot > static_cast<int>(unit_.slots.size()) ? "已新增刻印" + what
-                                                                     : "已把第 " + std::to_string(slot) + " 个刻印设为" + what);
+    const std::string what = "「" + (d ? d->name : id) + "」 레벨 " + std::to_string(level);
+    Act(std::move(code), slot > static_cast<int>(unit_.slots.size()) ? "각인을 추가했습니다. " + what
+                                                                     : std::to_string(slot) + "번 각인을 변경했습니다. " + what);
 }
 
 void ImprintEditor::Remove(int slot)
@@ -151,7 +153,7 @@ void ImprintEditor::Remove(int slot)
         "if u.imprints and u.imprints[" + std::to_string(slot) + "] then table.remove(u.imprints, " +
         std::to_string(slot) + ") end\n"
         "return 'ok'\n";
-    Act(std::move(code), "已删除第 " + std::to_string(slot) + " 个刻印");
+    Act(std::move(code), std::to_string(slot) + "번 각인을 삭제했습니다.");
 }
 
 void ImprintEditor::SetMaxSlots(int slots)
@@ -162,5 +164,5 @@ void ImprintEditor::SetMaxSlots(int slots)
         "u.maxImprintSlots = " + std::to_string(slots) + "\n"
         "u.imprints = u.imprints or {}\n"
         "return 'ok'\n";
-    Act(std::move(code), "刻印槽数已改成 " + std::to_string(slots));
+    Act(std::move(code), "각인 슬롯 수를 변경했습니다. 현재 " + std::to_string(slots) + "개");
 }

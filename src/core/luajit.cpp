@@ -161,11 +161,11 @@ bool LocateGlobalNumber(const GameProcess& game, const std::string& name, const 
         names.push_back(neighbor);
 
     const auto strings = FindStringObjects(game, names);
-    Logf(log, "字符串 \"%s\"：%zu 个对象", name.c_str(), strings[0].size());
+    Logf(log, "문자열 \"%s\": 객체 %zu개", name.c_str(), strings[0].size());
     if (useNeighbor)
-        Logf(log, "字符串 \"%s\"：%zu 个对象", neighbor.c_str(), strings[1].size());
+        Logf(log, "문자열 \"%s\": 객체 %zu개", neighbor.c_str(), strings[1].size());
     if (strings[0].empty()) {
-        Logf(log, "没找到变量名（还在主菜单 / 加载中？）");
+        Logf(log, "변수 이름을 찾지 못했습니다. 메인 메뉴나 로딩 중에는 변수가 없을 수 있습니다.");
         return false;
     }
 
@@ -199,12 +199,12 @@ bool LocateGlobalNumber(const GameProcess& game, const std::string& name, const 
             candidates.push_back({ node, keys[k], AsDouble(bits), inGlobals });
             // 同名字段可能上千个（别的表、旧快照），只列带邻居的和前几个
             if (inGlobals || candidates.size() <= 5)
-                Logf(log, "  候选节点 0x%llX = %.0f%s", static_cast<unsigned long long>(node), AsDouble(bits),
-                    inGlobals ? "（旁边有邻居变量，是 _G）" : "");
+                Logf(log, "  후보 노드 0x%llX = %.0f%s", static_cast<unsigned long long>(node), AsDouble(bits),
+                    inGlobals ? " (인접 변수 확인: _G)" : "");
         }
     }
     if (candidates.empty()) {
-        Logf(log, "没有值是数字的 \"%s\" 字段", name.c_str());
+        Logf(log, "숫자 값을 가진 필드가 없습니다: \"%s\"", name.c_str());
         return false;
     }
 
@@ -217,15 +217,15 @@ bool LocateGlobalNumber(const GameProcess& game, const std::string& name, const 
         pick = &candidates[0]; // 只有一个就是它，不管有没有邻居
     else if (inGlobalsCount != 1)
         pick = nullptr;        // 多个候选时要求带邻居的唯一
-    Logf(log, "共 %zu 个候选，其中 %zu 个旁边有邻居变量", candidates.size(), inGlobalsCount);
+    Logf(log, "전체 후보 %zu개, 인접 변수 확인 %zu개", candidates.size(), inGlobalsCount);
     if (!pick) {
-        Logf(log, "挑不出唯一的 _G 字段");
+        Logf(log, "_G 필드 하나를 특정할 수 없습니다.");
         return false;
     }
 
     out.node = pick->node;
     out.key = pick->key;
-    Logf(log, "定位到 %s：节点 0x%llX，当前 %.0f", name.c_str(), static_cast<unsigned long long>(out.node), pick->value);
+    Logf(log, "%s 찾음: 노드 0x%llX, 현재 값 %.0f", name.c_str(), static_cast<unsigned long long>(out.node), pick->value);
     return true;
 }
 

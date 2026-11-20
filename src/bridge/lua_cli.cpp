@@ -23,14 +23,14 @@ int wmain(int argc, wchar_t** argv)
 {
     SetConsoleOutputCP(CP_UTF8);
     if (argc < 2) {
-        fputs("用法: slotbound_lua \"lua 代码\" | -f 文件.lua\n", stderr);
+        fputs("사용법: slotbound_luacmd \"Lua 코드\" | -f 파일.lua\n", stderr);
         return 2;
     }
     std::string code;
     if (wcscmp(argv[1], L"-f") == 0 && argc > 2) {
         std::ifstream f(argv[2], std::ios::binary);
         if (!f) {
-            fputs("读不了文件\n", stderr);
+            fputs("파일을 읽지 못했습니다.\n", stderr);
             return 2;
         }
         std::stringstream ss;

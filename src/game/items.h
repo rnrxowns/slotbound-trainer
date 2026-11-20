@@ -20,7 +20,7 @@ public:
         std::string stage;               // 只在某一关出的物品：关卡号；所有关都出 = 空
         int price = 0, maxLevel = 1;
         bool unlocked = true;            // initiallyUnlocked（没解锁的商店里不出）
-        std::vector<std::string> levels; // 每级效果（中文，图标已换成文字），下标 0 = 1 级
+        std::vector<std::string> levels; // Level effects with text in place of icons. Index 0 is level 1.
     };
     struct Owned {
         int index = 0;                   // 1 起
@@ -45,7 +45,7 @@ private:
     std::string PollCode() const override;
     void OnPoll(const bridge::Result& r) override;
     const char* CatalogCode() const override;
-    const char* CatalogName() const override { return "物品目录"; }
+    const char* CatalogName() const override { return "아이템 목록"; }
     void OnCatalog(const std::string& text) override;
     std::string ActionError(const bridge::Result& r) const override;
 

@@ -9,18 +9,18 @@ namespace ui {
 
 namespace {
 
-constexpr const char* kWriteFailed = "写入失败：位置变了，正在重新找";
+constexpr const char* kWriteFailed = "값을 변경하지 못했습니다. 메모리 위치를 다시 찾는 중입니다.";
 
 void DrawStatusVar(const Config& cfg, const VarConfig& vc, const LuaVar& var, const char* label)
 {
     if (!var.Ready()) {
-        ImGui::TextDisabled("%s：%s", label, VarStateText(var));
+        ImGui::TextDisabled("%s · %s", label, VarStateText(var));
         return;
     }
     ImGui::Text("%s %.0f", label, var.Value());
     if (cfg.enabled && vc.lock) {
         ImGui::SameLine();
-        ImGui::TextColored(kGreen, "  锁定在 %d", vc.lockValue);
+        ImGui::TextColored(kGreen, "  고정값 %d", vc.lockValue);
     }
 }
 
@@ -41,30 +41,30 @@ void DrawVarSection(const Config& cfg, VarConfig& vc, LuaVar& var, VarUi& ui)
     if (!var.Ready())
         ImGui::TextDisabled("%s", VarStateText(var));
     else
-        ImGui::Text("当前 %.0f", var.Value());
+        ImGui::Text("현재 값 %.0f", var.Value());
 
     ImGui::BeginDisabled(!var.Ready() || !cfg.enabled);
     NonNegativeInput("##set", ui.setValue, ui);
     ImGui::SameLine();
-    if (ImGui::Button("改成这个数"))
-        ui.message = var.Set(ui.setValue) ? "已改" : kWriteFailed;
+    if (ImGui::Button("값 적용###set_value"))
+        ui.message = var.Set(ui.setValue) ? "값을 변경했습니다." : kWriteFailed;
     for (int add : ui.quickAdd) {
         ImGui::SameLine();
         char label[24];
         snprintf(label, sizeof(label), "+%d", add);
         if (ImGui::Button(label))
-            ui.message = var.Set(var.Value() + add) ? "已加" : kWriteFailed;
+            ui.message = var.Set(var.Value() + add) ? "값을 늘렸습니다." : kWriteFailed;
     }
     ImGui::EndDisabled();
     HintText(ui.message);
 
     char text[64];
-    snprintf(text, sizeof(text), "锁定%s", ui.label);
-    ToggleSwitch(text, &vc.lock, "用掉了马上补回锁定值；关掉后从当前值正常减");
-    NonNegativeInput("锁定值", vc.lockValue, ui);
-    KeyBinder("锁定快捷键", vc.lockKey, true);
-    NonNegativeInput("快捷键每次加", vc.addAmount, ui);
-    KeyBinder("加的快捷键", vc.addKey, true);
+    snprintf(text, sizeof(text), "%s 고정", ui.label);
+    ToggleSwitch(text, &vc.lock, "자원을 사용하면 고정값으로 즉시 복구합니다. 끄면 현재 값에서 차감됩니다.");
+    NonNegativeInput("고정값###lock_value", vc.lockValue, ui);
+    KeyBinder("고정 단축키", vc.lockKey, true);
+    NonNegativeInput("단축키로 늘릴 양###add_amount", vc.addAmount, ui);
+    KeyBinder("증가 단축키", vc.addKey, true);
     ImGui::PopID();
 }
 
@@ -73,9 +73,9 @@ void DrawVarSection(const Config& cfg, VarConfig& vc, LuaVar& var, VarUi& ui)
 const char* VarStateText(const LuaVar& var)
 {
     switch (var.GetState()) {
-    case LuaVar::State::NotConnected: return "没连上游戏";
-    case LuaVar::State::Locating: return "正在找…";
-    case LuaVar::State::NotFound: return "没找到（主菜单 / 加载中？5 秒后再找）";
+    case LuaVar::State::NotConnected: return "게임에 연결되지 않았습니다";
+    case LuaVar::State::Locating: return "값을 찾는 중…";
+    case LuaVar::State::NotFound: return "검색 실패 (메뉴 또는 로딩 중일 수 있음, 5초 후 재검색)";
     case LuaVar::State::Ready: return "";
     }
     return "";
@@ -90,18 +90,18 @@ void DrawStatusBar(const Config& cfg, const GameProcess& game, std::span<const T
     ImGui::SetNextWindowBgAlpha(0.65f);
     ImGui::Begin("##status", nullptr, flags);
 
-    ImGui::TextUnformatted("转运军团 修改器");
+    ImGui::TextUnformatted("Slotbound 트레이너");
     ImGui::SameLine();
-    ImGui::TextColored(cfg.enabled ? kGreen : kRed, cfg.enabled ? "[开]" : "[关]");
+    ImGui::TextColored(cfg.enabled ? kGreen : kRed, cfg.enabled ? "[켜짐]" : "[꺼짐]");
 
     if (!game.Pid()) {
-        ImGui::TextDisabled("等待 %s ...", ToUtf8(cfg.processName).c_str());
+        ImGui::TextDisabled("%s 실행 대기 중…", ToUtf8(cfg.processName).c_str());
     } else {
         for (const TrackedVar& t : vars)
             DrawStatusVar(cfg, cfg.*t.cfg, t.var, t.ui.label);
     }
 
-    ImGui::TextDisabled("%s 菜单  %s 总开关  %s 隐藏  %s 退出", KeyName(cfg.menuKey).c_str(), KeyName(cfg.panicKey).c_str(),
+    ImGui::TextDisabled("%s 메뉴  %s 전체 켜기/끄기  %s 숨기기  %s 종료", KeyName(cfg.menuKey).c_str(), KeyName(cfg.panicKey).c_str(),
         KeyName(cfg.hideKey).c_str(), KeyName(cfg.exitKey).c_str());
     ImGui::End();
 }
@@ -112,8 +112,8 @@ void DrawResourcesPage(Config& cfg, std::span<TrackedVar> vars)
         DrawVarSection(cfg, cfg.*t.cfg, t.var, t.ui);
     ImGui::Spacing();
     if (!cfg.enabled)
-        ImGui::TextColored(kAmber, "总开关是关的：修改和锁定都不生效");
-    ImGui::TextDisabled("改出来的数值不会在退出修改器时恢复（本来就是想留着的）");
+        ImGui::TextColored(kAmber, "전체 기능이 꺼져 있어 값을 변경하거나 고정할 수 없습니다.");
+    ImGui::TextDisabled("트레이너를 종료해도 변경한 값은 유지됩니다.");
 }
 
 } // namespace ui

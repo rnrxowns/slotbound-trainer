@@ -3,6 +3,8 @@
 #include <d3d11.h>
 #include <dwmapi.h>
 
+#include "ui/widgets.h"
+
 #include "imgui_impl_dx11.h"
 #include "imgui_impl_win32.h"
 
@@ -116,6 +118,28 @@ RECT PrimaryMonitorRect()
     return RECT{ 0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN) };
 }
 
+void LoadKoreanFont(ImGuiIO& io)
+{
+    wchar_t windowsDir[MAX_PATH];
+    const UINT length = GetWindowsDirectoryW(windowsDir, MAX_PATH);
+    if (!length || length >= MAX_PATH)
+        return;
+
+    const std::string fontDir = ui::ToUtf8(std::wstring(windowsDir, length)) + "\\Fonts\\";
+    ImFontConfig config;
+    config.Flags |= ImFontFlags_NoLoadError;
+    for (const char* file : { "malgun.ttf", "gulim.ttc", "batang.ttc" }) {
+        if (ImFont* font = io.Fonts->AddFontFromFileTTF((fontDir + file).c_str(), 0.0f, &config)) {
+            io.FontDefault = font;
+
+            // Keep Chinese glyphs available for game data that has no Korean translation.
+            config.MergeMode = true;
+            io.Fonts->AddFontFromFileTTF((fontDir + "msyh.ttc").c_str(), 0.0f, &config);
+            return;
+        }
+    }
+}
+
 // 定制主题（不用 ImGui 默认的 StyleColorsDark）：深石墨底、青色强调、圆角、宽松间距
 void ApplyTheme()
 {
@@ -203,7 +227,7 @@ bool Create()
 
     g_rect = PrimaryMonitorRect();
     g_hwnd = CreateWindowExW(WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TOOLWINDOW | kPassThroughStyles,
-        kClassName, L"Slotbound Trainer Overlay", WS_POPUP,
+        kClassName, L"Slotbound 트레이너 오버레이", WS_POPUP,
         g_rect.left, g_rect.top, g_rect.right - g_rect.left, g_rect.bottom - g_rect.top,
         nullptr, nullptr, wc.hInstance, nullptr);
     if (!g_hwnd)
@@ -235,10 +259,7 @@ bool Create()
     style.FontScaleDpi = scale;
     style.FontSizeBase = 17.0f;
 
-    // 微软雅黑带中文；1.92 起字形按需加载，不用指定字符范围
-    const char* cjkFont = "C:\\Windows\\Fonts\\msyh.ttc";
-    if (GetFileAttributesA(cjkFont) != INVALID_FILE_ATTRIBUTES)
-        io.Fonts->AddFontFromFileTTF(cjkFont);
+    LoadKoreanFont(io);
 
     ImGui_ImplWin32_Init(g_hwnd);
     ImGui_ImplDX11_Init(g_device, g_context);

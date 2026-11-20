@@ -1,20 +1,20 @@
-# 每次推送 / PR：编便携版，上传成构建产物（Actions 页面下载 zip）。
-# 推 v* 标签（例如 v0.2.0）：同时发 GitHub Release，直接附上 exe。
+# Actions에서 배포용 EXE를 다운로드할 수 있습니다.
+# v* 태그를 푸시하면 GitHub Release에도 EXE를 첨부합니다.
 name: build
 
 on:
   push:
-    branches: [main]
+    branches: [main, korean-localization]
     tags: ['v*']
   pull_request:
   workflow_dispatch:
 
 permissions:
-  contents: write # 只有打标签发 Release 时用得到
+  contents: write # v* 태그의 Release 발행에 사용합니다.
 
 jobs:
   build:
-    # 固定 2022 镜像：build.ps1 用的是 "Visual Studio 17 2022" 生成器
+    # build.ps1에서 Visual Studio 2022 생성기를 사용합니다.
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
@@ -27,14 +27,14 @@ jobs:
         id: pkg
         shell: pwsh
         run: |
-          $ver = if ('${{ github.ref_type }}' -eq 'tag') { '${{ github.ref_name }}' } else { "dev-$('${{ github.sha }}'.Substring(0, 7))" }
-          "name=slotbound-trainer-$ver" >> $env:GITHUB_OUTPUT
+          $ver = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME } else { "dev-$($env:GITHUB_SHA.Substring(0, 7))" }
+          "name=slotbound-trainer-ko-$ver" >> $env:GITHUB_OUTPUT
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.pkg.outputs.name }}
-          path: dist/slotbound_trainer.exe
+          path: dist/slotbound_trainer_ko.exe
           if-no-files-found: error
 
       - name: Publish release
@@ -42,4 +42,4 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create '${{ github.ref_name }}' dist/slotbound_trainer.exe --title '${{ github.ref_name }}' --generate-notes
+        run: gh release create $env:GITHUB_REF_NAME dist/slotbound_trainer_ko.exe --title $env:GITHUB_REF_NAME --generate-notes

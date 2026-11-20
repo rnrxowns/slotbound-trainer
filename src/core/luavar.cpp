@@ -20,7 +20,7 @@ void LuaVar::StartLocate()
             r.ok = lj::LocateGlobalNumber(*game, name, neighbor, r.field, r.log);
             // 显示字段找不到不影响改值本身，只是界面要等游戏下次加减才刷新
             if (r.ok && mirror) {
-                r.log += "--- 同步显示字段 ---\n";
+                r.log += "--- 표시값 동기화 필드 ---\n";
                 if (!lj::LocateGlobalNumber(*game, mirror, mirrorNeighbor ? mirrorNeighbor : "", r.mirror, r.log))
                     r.mirror = {};
             }
@@ -58,7 +58,7 @@ void LuaVar::Update(bool lockOn, double lockValue)
 
     if (state_ == State::Ready && !lj::ReadNumber(game_, field_, value_)) {
         // 节点被搬走了（_G 扩容）或者读不到了：重新定位
-        log_ += "节点失效，重新定位\n";
+        log_ += "노드가 무효화되어 다시 찾는 중\n";
         field_ = {};
         StartLocate();
         return;

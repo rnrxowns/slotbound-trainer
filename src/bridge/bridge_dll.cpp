@@ -71,7 +71,7 @@ void Run(lua_State* L, Request& req)
         size_t len = 0;
         const char* msg = g_lua.tolstring(L, -1, &len);
         out = "1";
-        out.append(msg ? std::string(msg, len) : std::string("(错误对象不是字符串)"));
+        out.append(msg ? std::string(msg, len) : std::string("(오류 객체를 문자열로 표시할 수 없습니다.)"));
     } else {
         out = "0";
         const int n = g_lua.gettop(L);
@@ -233,7 +233,7 @@ std::string Execute(std::string code)
         Request* expected = &req;
         if (g_pending.compare_exchange_strong(expected, nullptr)) {
             CloseHandle(req.done);
-            return "1超时：游戏主线程 5 秒内没有调用 lua_pushnumber（加载中 / 暂停 / 最小化？）";
+            return "1제한 시간 초과. 게임 메인 스레드에서 5초 안에 lua_pushnumber를 호출하지 않았습니다. 로딩, 일시 정지, 창 최소화 상태를 확인하세요.";
         }
         WaitForSingleObject(req.done, INFINITE); // 主线程已经拿走在执行了，等它做完
     }
@@ -273,7 +273,7 @@ DWORD WINAPI MainThread(void*)
 {
     HANDLE unload = CreateEventW(nullptr, TRUE, FALSE, bridge::kUnloadEvent);
     if (!Install()) {
-        OutputDebugStringW(L"slotbound_lua: 安装失败（没找到 lua51.dll / love.dll / 游戏窗口 / 导入项）\n");
+        OutputDebugStringW(L"slotbound_lua: 초기화 실패. lua51.dll, love.dll, 게임 창, 가져오기 항목을 확인하세요.\n");
         if (unload)
             CloseHandle(unload);
         FreeLibraryAndExitThread(g_self, 1);

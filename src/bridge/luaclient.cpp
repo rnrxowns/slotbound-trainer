@@ -48,14 +48,14 @@ Result Execute(const std::string& code, unsigned timeoutMs)
         const DWORD err = GetLastError();
         const ULONGLONG now = GetTickCount64();
         if (now >= deadline)
-            return { false, err == ERROR_FILE_NOT_FOUND ? "连不上游戏里的 slotbound_lua.dll（没注入？）"
-                                                        : "管道一直忙，稍后再试" };
+            return { false, err == ERROR_FILE_NOT_FOUND ? "게임의 slotbound_lua.dll에 연결할 수 없습니다. DLL 주입 상태를 확인하세요."
+                                                        : "통신 파이프가 사용 중입니다. 잠시 후 다시 시도하세요." };
         if (err == ERROR_PIPE_BUSY)
             WaitNamedPipeW(kPipeName, static_cast<DWORD>(deadline - now));
         else if (err == ERROR_FILE_NOT_FOUND)
             Sleep(20); // 服务端刚断开、还没重建
         else
-            return { false, "打开管道失败（错误 " + std::to_string(err) + "）" };
+            return { false, "통신 파이프를 열지 못했습니다 (오류 " + std::to_string(err) + ")" };
     }
 
     Result r;
@@ -63,13 +63,13 @@ Result Execute(const std::string& code, unsigned timeoutMs)
     DWORD put = 0;
     uint32_t outLen = 0;
     if (!WriteFile(pipe, &len, 4, &put, nullptr) || !WriteFile(pipe, code.data(), len, &put, nullptr)) {
-        r.text = "发送失败";
+        r.text = "요청을 보내지 못했습니다.";
     } else if (!ReadAll(pipe, &outLen, 4) || outLen == 0 || outLen > kMaxMessage) {
-        r.text = "没收到回复";
+        r.text = "응답을 받지 못했습니다.";
     } else {
         std::string reply(outLen, '\0');
         if (!ReadAll(pipe, reply.data(), outLen)) {
-            r.text = "回复不完整";
+            r.text = "응답이 불완전합니다.";
         } else {
             r.ok = reply[0] == '0';
             r.text = reply.substr(1);

@@ -59,6 +59,7 @@ set(IMGUI_SOURCES
 
 # WIN32 = 窗口程序，不弹控制台
 add_executable(slotbound_trainer WIN32 ${APP_SOURCES} ${IMGUI_SOURCES})
+set_target_properties(slotbound_trainer PROPERTIES OUTPUT_NAME slotbound_trainer_ko)
 
 target_include_directories(slotbound_trainer PRIVATE ${CMAKE_SOURCE_DIR}/src ${IMGUI_DIR} ${IMGUI_DIR}/backends)
 

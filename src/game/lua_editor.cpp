@@ -34,7 +34,7 @@ void LuaEditor::Update(bool visible)
             catalogLoaded_ = true;
             catalogError_.clear();
         } else {
-            catalogError_ = std::string("读") + CatalogName() + "失败：" + r.text;
+            catalogError_ = std::string(CatalogName()) + " 불러오기 실패: " + r.text;
         }
     }
     if (Ready(pollJob_)) {

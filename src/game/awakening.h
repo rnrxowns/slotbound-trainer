@@ -17,7 +17,7 @@ class AwakeningEditor : public LuaEditor {
 public:
     struct Def {
         std::string id, name, category;
-        std::vector<std::string> levels; // 每级效果（中文，图标已换成文字），下标 0 = 1 级
+        std::vector<std::string> levels; // Level effects with text in place of icons. Index 0 is level 1.
         bool inPool = false;             // 是这个职业的候选
     };
     struct Unit {

@@ -41,7 +41,7 @@ std::wstring ExtractEmbeddedDll(std::string& error)
     if (len == 0 || len >= MAX_PATH)
         len = GetTempPathW(MAX_PATH, base);
     if (len == 0 || len >= MAX_PATH) {
-        error = "找不到能放 DLL 的目录（LOCALAPPDATA / TEMP 都没有）";
+        error = "DLL을 저장할 폴더가 없습니다. LOCALAPPDATA와 TEMP를 찾을 수 없습니다.";
         return {};
     }
     std::wstring dir(base, len);
@@ -63,7 +63,7 @@ std::wstring ExtractEmbeddedDll(std::string& error)
     const std::wstring tmp = path + L".tmp";
     if (!WriteAll(tmp, kLuaDll, kLuaDll_size) || !MoveFileExW(tmp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING)) {
         DeleteFileW(tmp.c_str());
-        error = "释放内嵌的 slotbound_lua.dll 失败（" + std::to_string(GetLastError()) + "）";
+        error = "내장 slotbound_lua.dll을 추출하지 못했습니다 (오류 " + std::to_string(GetLastError()) + ")";
         return {};
     }
     return path;

@@ -14,8 +14,6 @@ constexpr const char* kUnitLua = R"lua(
 if not u then return 'none' end
 local FS = '\31'
 local A = require('src.game.awakening')
-local Lang = require('src.data.language')
-local loc = Lang[rawget(_G, 'currentGameLang') or 'zh'] or Lang.zh or {}
 local aw = type(u.awakening) == 'table' and u.awakening or {}
 local ver = tonumber(aw.version or u.awakeningVersion) or 10
 local okId, ident = pcall(A.identity, u)
@@ -28,7 +26,6 @@ local sel = type(aw.selected) == 'table' and aw.selected or {}
 local okCap, cap = pcall(A.capacity, u)
 local lv = 0
 if sel[1] then local ok, l = pcall(A.level, u, sel[1]); lv = ok and tonumber(l) or 0 end
-local function clean(s) return (tostring(s or ''):gsub('[\n|\31]', ' ')) end
 local out = { table.concat({ 'H', tostring(u.sym), tostring(u.index or 0), (ident and #pool > 0) and '1' or '0',
   tostring(ident or ''), tostring(ver), tostring(okCap and cap or 0), tostring(lv), table.concat(sel, ',') }, FS) }
 local listed = {}
@@ -40,9 +37,9 @@ local function emit(id, inPool)
   local levels = {}
   for L = 1, 5 do
     local st = c.stages and c.stages[L]
-    levels[#levels+1] = clean(loc[pre .. '.' .. L .. '.text'] or (st and st.text) or '')
+    levels[#levels+1] = textField(localizedText(pre .. '.' .. L .. '.text', st and st.text))
   end
-  out[#out+1] = table.concat({ 'D', id, clean(loc[pre .. '.name'] or c.name or id), clean(c.category),
+  out[#out+1] = table.concat({ 'D', id, textField(localizedText(pre .. '.name', c.name) or id), textField(c.category),
     inPool and '1' or '0', table.concat(levels, '|') }, FS)
 end
 for _, id in ipairs(pool) do emit(tostring(id), true) end
@@ -69,7 +66,7 @@ return 'ok'
 
 std::string AwakeningEditor::PollCode() const
 {
-    return std::string(kResolveUnit) + kUnitLua;
+    return std::string(kResolveUnit) + kLocalizedTextLua + kUnitLua;
 }
 
 void AwakeningEditor::OnPoll(const bridge::Result& r)
@@ -108,22 +105,22 @@ void AwakeningEditor::Set(int slot, const std::string& id)
         "local A = require('src.game.awakening')\n"
         "pcall(A.normalize, u)\n"
         "local aw = u.awakening\n"
-        "if type(aw) ~= 'table' then return '这个单位没有觉醒数据' end\n"
+        "if type(aw) ~= 'table' then return '이 유닛의 각성 데이터가 없습니다.' end\n"
         "aw.selected = aw.selected or {}\n"
         "local id = " + Quote(id) + "\n"
         "local cat = A.catalog(u)\n"
-        "if not (cat and cat.candidates and cat.candidates[id]) then return '觉醒目录里没有 ' .. id end\n"
+        "if not (cat and cat.candidates and cat.candidates[id]) then return '각성 목록에 해당 ID가 없습니다. ID ' .. id end\n"
         "local slot = math.min(" + std::to_string(slot) + ", #aw.selected + 1)\n"
-        "for i, x in ipairs(aw.selected) do if x == id and i ~= slot then return '已经有这个觉醒了' end end\n"
-        "if slot > #aw.selected and #aw.selected >= " + std::to_string(kMaxSelected) + " then return '最多 5 个觉醒（游戏规整时会截掉多的）' end\n"
+        "for i, x in ipairs(aw.selected) do if x == id and i ~= slot then return '이미 적용된 각성입니다.' end end\n"
+        "if slot > #aw.selected and #aw.selected >= " + std::to_string(kMaxSelected) + " then return '각성은 최대 5개까지 적용할 수 있습니다.' end\n"
         "aw.selected[slot] = id\n"
         "aw.seen = aw.seen or {}\n"
         "aw.seen[id] = true\n" +
         kFinishLua;
     const Def* d = Find(id);
     const std::string what = "「" + (d ? d->name : id) + "」";
-    Act(std::move(code), slot > static_cast<int>(unit_.selected.size()) ? "已新增觉醒" + what
-                                                                         : "已把第 " + std::to_string(slot) + " 个觉醒换成" + what);
+    Act(std::move(code), slot > static_cast<int>(unit_.selected.size()) ? what + " 각성을 추가했습니다."
+                                                                         : std::to_string(slot) + "번 각성을 교체했습니다. " + what);
 }
 
 void AwakeningEditor::Remove(int slot)
@@ -132,8 +129,8 @@ void AwakeningEditor::Remove(int slot)
         return;
     std::string code = CheckSameUnit(unit_.sym, unit_.rosterIndex) +
         "local aw = u.awakening\n"
-        "if type(aw) ~= 'table' or type(aw.selected) ~= 'table' then return '这个单位没有觉醒数据' end\n"
+        "if type(aw) ~= 'table' or type(aw.selected) ~= 'table' then return '이 유닛의 각성 데이터가 없습니다.' end\n"
         "if aw.selected[" + std::to_string(slot) + "] then table.remove(aw.selected, " + std::to_string(slot) + ") end\n" +
         kFinishLua;
-    Act(std::move(code), "已删除第 " + std::to_string(slot) + " 个觉醒");
+    Act(std::move(code), std::to_string(slot) + "번 각성을 삭제했습니다.");
 }

@@ -59,8 +59,8 @@ inline std::string Number(double v)
 inline std::string IconText(std::string s)
 {
     static const std::pair<const char*, const char*> kIcons[] = {
-        { "{atk.png}", "攻击" }, { "{hp.png}", "生命" }, { "{aspd.png}", "攻速" }, { "{dist.png}", "射程" },
-        { "{gold.png}", "金币" }, { "{essence.png}", "水晶" },
+        { "{atk.png}", "공격력" }, { "{hp.png}", "체력" }, { "{aspd.png}", "공격 속도" }, { "{dist.png}", "사거리" },
+        { "{gold.png}", "골드" }, { "{essence.png}", "정수" },
     };
     if (s.find('{') == std::string::npos)
         return s;
@@ -88,6 +88,28 @@ inline std::future<bridge::Result> Run(std::string code)
 {
     return std::async(std::launch::async, [code = std::move(code)] { return bridge::Execute(code, 3000); });
 }
+
+// Use the game's Korean text without changing its selected language. The upstream
+// game notes identify getText as a source of Korean text and definitions as a fallback.
+inline constexpr const char* kLocalizedTextLua = R"lua(
+local language
+local function localizedText(key, original)
+  language = language or require('src.data.language')
+  local korean = type(language.ko) == 'table' and language.ko[key]
+  if type(korean) == 'string' and korean ~= '' and korean ~= key then return korean end
+  if type(language.getText) == 'function' then
+    local ok, text = pcall(language.getText, key)
+    if ok and type(text) == 'string' and text ~= '' and text ~= key then return text end
+  end
+  if original and original ~= '' then return original end
+  local current = language[rawget(_G, 'currentGameLang') or 'zh']
+  local chinese = language.zh
+  return (type(current) == 'table' and current[key]) or (type(chinese) == 'table' and chinese[key]) or nil
+end
+local function textField(text)
+  return (tostring(text or ''):gsub('[\r\n|\31]', ' '))
+end
+)lua";
 
 // 公共前缀：取当前点选的己方单位 → 局部变量 u（没有时 nil），how = 'locked' / 'last'
 inline constexpr const char* kResolveUnit = R"lua(
@@ -176,13 +198,13 @@ inline std::string CheckSameUnit(const std::string& sym, int rosterIndex)
 inline std::string ActionError(const bridge::Result& r)
 {
     if (!r.ok)
-        return "失败：" + r.text;
+        return "실패: " + r.text;
     if (r.text == "none")
-        return "失败：没有选中单位";
+        return "실패: 선택한 유닛이 없습니다.";
     if (r.text == "changed")
-        return "失败：选中的单位变了，请看一眼再点";
+        return "실패: 선택한 유닛이 바뀌었습니다. 대상을 확인한 뒤 다시 시도해 주세요.";
     if (r.text != "ok")
-        return "失败：" + r.text;
+        return "실패: " + r.text;
     return {};
 }
 

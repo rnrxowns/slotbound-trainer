@@ -26,27 +26,27 @@ int wmain(int argc, wchar_t** argv)
     SetConsoleOutputCP(CP_UTF8);
     const std::wstring cmd = argc > 1 ? argv[1] : L"";
     if (cmd == L"unload") {
-        puts(bridge::Unload() ? "已通知 slotbound_lua.dll 卸载" : "slotbound_lua.dll 没在运行");
+        puts(bridge::Unload() ? "slotbound_lua.dll 로드 해제를 요청했습니다." : "slotbound_lua.dll이 실행 중이 아닙니다.");
         return 0;
     }
     if (cmd != L"load") {
-        puts("用法: slotbound_inject load | unload");
+        puts("사용법: slotbound_inject load | unload");
         return 2;
     }
     if (bridge::Injected()) {
-        puts("已经注入过了");
+        puts("DLL이 이미 주입되어 있습니다.");
         return 0;
     }
     const DWORD pid = FindGame();
     if (!pid) {
-        puts("Slotbound.exe 没在运行");
+        puts("Slotbound.exe가 실행 중이 아닙니다.");
         return 1;
     }
     std::string error;
     if (!bridge::Inject(pid, L"", error)) {
-        printf("注入失败：%s\n", error.c_str());
+        printf("DLL 주입 실패: %s\n", error.c_str());
         return 1;
     }
-    printf("已注入 pid=%lu\n", pid);
+    printf("DLL 주입 완료. PID=%lu\n", pid);
     return 0;
 }

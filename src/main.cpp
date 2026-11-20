@@ -1,4 +1,4 @@
-// 转运军团 修改器：外部程序。读写游戏内存，透明覆盖层画 UI。
+// Slotbound 트레이너는 게임 메모리를 읽고 쓰며 투명 오버레이에 UI를 표시합니다.
 //   资源页：外部读写 Lua 全局变量 coins（金币）、spinsLeft（剩余旋转次数）、jungsu（水晶），不注入。
 //   单位 / 物品 / 老虎机页：用户点「注入」后经 slotbound_lua.dll 在游戏里执行 Lua。
 // 这里只有主循环；各页的画法在 src/ui/，和游戏打交道的在 src/game/、src/core/。
@@ -85,7 +85,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
     bool cfgFileFound = LoadConfig(cfgPath, cfg);
 
     if (!overlay::Create()) {
-        MessageBoxW(nullptr, L"覆盖层创建失败（D3D11 初始化不了）", L"转运军团 修改器", MB_ICONERROR);
+        MessageBoxW(nullptr, L"D3D11을 초기화하지 못해 오버레이를 만들 수 없습니다.", L"Slotbound 트레이너", MB_ICONERROR);
         return 1;
     }
     overlay::SetInteractive(false);
@@ -94,11 +94,11 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
     // 可改的 Lua 全局变量。displayCoins 只有 _G 里有；别的表（状态快照）里也有同名字段，靠它挑出 _G 的那个。
     // 加新数值：这里加一行 + Config 里加一个 VarConfig + config.cpp 里 Load/Save 一行
     ui::TrackedVar vars[] = {
-        { { game, "coins", "displayCoins" }, &Config::coins, { "金币", { 100, 1000, 10000 }, 1000, 10000, 99999, {} } },
-        { { game, "spinsLeft", "displayCoins" }, &Config::spins, { "旋转次数", { 1, 5, 10 }, 1, 10, 99, {} } },
+        { { game, "coins", "displayCoins" }, &Config::coins, { "골드", { 100, 1000, 10000 }, 1000, 10000, 99999, {} } },
+        { { game, "spinsLeft", "displayCoins" }, &Config::spins, { "회전 횟수", { 1, 5, 10 }, 1, 10, 99, {} } },
         // 水晶的界面动画目标 jungsuBalanceTarget 只在游戏自己加减时更新，改值时要一起写，界面才会跟上
         { { game, "jungsu", "displayCoins", "jungsuBalanceTarget", "jungsuBalance" }, &Config::jungsu,
-            { "水晶", { 1, 5, 10 }, 1, 10, 99, {} } },
+            { "정수", { 1, 5, 10 }, 1, 10, 99, {} } },
     };
     ui::LuaPages pages;
     bool menuOpen = false;

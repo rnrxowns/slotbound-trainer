@@ -55,7 +55,7 @@ private:
     std::string PollCode() const override;
     void OnPoll(const bridge::Result& r) override;
     const char* CatalogCode() const override;
-    const char* CatalogName() const override { return "词条目录"; }
+    const char* CatalogName() const override { return "특성 목록"; }
     void OnCatalog(const std::string& text) override;
 
     DefTable<Def> catalog_;

@@ -12,18 +12,16 @@ using namespace luaops;
 // 物品目录：id  名字  类型  稀有度  价格  满级  是否初始解锁  关卡  各级效果（| 分隔）
 constexpr const char* kCatalogLua = R"lua(
 local I = require('src.game.item')
-local Lang = require('src.data.language')
-local loc = Lang[rawget(_G, 'currentGameLang') or 'zh'] or Lang.zh or {}
 local FS = '\31'
-local function clean(s) return (tostring(s or ''):gsub('[\n|\31]', ' ')) end
-local types = { ['전투'] = '战斗', ['훈련'] = '训练' }
 local out = {}
 for _, d in ipairs(I.getAll()) do
   local id = tostring(d.id)
   local maxL = math.max(1, math.floor(tonumber(d.maxLevel) or 1))
   local lv = {}
-  for L = 1, maxL do lv[#lv+1] = clean(loc['item.effect.' .. id .. '.' .. L] or (L == 1 and d.effect) or '') end
-  out[#out+1] = table.concat({ id, clean(loc['item.name.' .. id] or d.name or id), types[d.typeKo] or tostring(d.typeKo or ''),
+  for L = 1, maxL do
+    lv[#lv+1] = textField(localizedText('item.effect.' .. id .. '.' .. L, L == 1 and d.effect))
+  end
+  out[#out+1] = table.concat({ id, textField(localizedText('item.name.' .. id, d.name) or id), tostring(d.typeKo or ''),
     tostring(d.rarity or ''), tostring(d.price or 0), tostring(maxL), d.initiallyUnlocked == false and '0' or '1',
     tostring(d.stage or ''), table.concat(lv, '|') }, FS)
 end
@@ -62,7 +60,8 @@ int ItemEditor::OwnedLevel(const std::string& id) const
 
 const char* ItemEditor::CatalogCode() const
 {
-    return kCatalogLua;
+    static const std::string code = std::string(kLocalizedTextLua) + kCatalogLua;
+    return code.c_str();
 }
 
 void ItemEditor::OnCatalog(const std::string& text)
@@ -110,9 +109,9 @@ void ItemEditor::OnPoll(const bridge::Result& r)
 std::string ItemEditor::ActionError(const bridge::Result& r) const
 {
     if (r.ok && r.text == "changed")
-        return "失败：背包变了（游戏里刚买 / 卖了东西），请看一眼再点";
+        return "실패: 가방의 아이템이 바뀌었습니다. 대상 아이템을 확인한 뒤 다시 시도해 주세요.";
     if (!r.ok || r.text != "ok")
-        return "失败：" + r.text;
+        return "실패: " + r.text;
     return {};
 }
 
@@ -122,10 +121,10 @@ void ItemEditor::Add(const std::string& id, int level)
         return;
     // 照游戏购买的做法：复制定义、设等级、刷新效果文字、插到末尾、分配面板键 'p' .. _itemPanelNextId
     std::string code =
-        "if type(ui) ~= 'table' then return '游戏界面还没准备好' end\n"
+        "if type(ui) ~= 'table' then return '게임 화면이 아직 준비되지 않았습니다.' end\n"
         "local I = require('src.game.item')\n"
         "local d = I.getById(" + Quote(id) + ")\n"
-        "if not d then return '没有这个物品 id' end\n"
+        "if not d then return '해당 ID의 아이템을 찾을 수 없습니다.' end\n"
         "local maxL = math.max(1, math.floor(tonumber(d.maxLevel) or 1))\n"
         "local L = math.max(1, math.min(maxL, " + std::to_string(level) + "))\n"
         "ui._itemPurchased = ui._itemPurchased or {}\n"
@@ -148,8 +147,9 @@ void ItemEditor::Add(const std::string& id, int level)
         "return 'ok'\n";
     const Def* d = Find(id);
     const std::string name = "「" + (d ? d->name : id) + "」";
-    const std::string lv = std::to_string(level) + " 级";
-    Act(std::move(code), OwnedLevel(id) > 0 ? "已把" + name + "改成 " + lv : "已放进背包：" + name + " " + lv);
+    const std::string lv = "레벨 " + std::to_string(level);
+    Act(std::move(code), OwnedLevel(id) > 0 ? name + " 레벨 변경 완료 (" + lv + ")"
+                                          : "가방에 추가했습니다. " + name + " " + lv);
 }
 
 void ItemEditor::SetLevel(int index, const std::string& id, int level)
@@ -162,7 +162,7 @@ void ItemEditor::SetLevel(int index, const std::string& id, int level)
         "if type(o.updateEffectString) == 'function' then pcall(o.updateEffectString, o) end\n"
         "return 'ok'\n";
     const Def* d = Find(id);
-    Act(std::move(code), "已把「" + (d ? d->name : id) + "」改成 " + std::to_string(level) + " 级");
+    Act(std::move(code), "「" + (d ? d->name : id) + "」 레벨 변경 완료 (레벨 " + std::to_string(level) + ")");
 }
 
 void ItemEditor::Remove(int index, const std::string& id)
@@ -177,5 +177,5 @@ void ItemEditor::Remove(int index, const std::string& id)
         "end\n"
         "return 'ok'\n";
     const Def* d = Find(id);
-    Act(std::move(code), "已删除「" + (d ? d->name : id) + "」（不退水晶）");
+    Act(std::move(code), "가방에서 「" + (d ? d->name : id) + "」 아이템을 삭제했습니다. 정수는 환불되지 않습니다.");
 }

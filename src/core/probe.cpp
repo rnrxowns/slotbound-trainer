@@ -4,6 +4,7 @@
 #include <windows.h>
 
 #include <chrono>
+#include <clocale>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
@@ -42,10 +43,11 @@ int wmain(int argc, wchar_t** argv)
 
     GameProcess game;
     if (!game.Attach(exe)) {
-        wprintf(L"没找到进程 %ls\n", exe.c_str());
+        std::setlocale(LC_CTYPE, ".UTF8");
+        wprintf(L"프로세스를 찾지 못했습니다: %ls\n", exe.c_str());
         return 1;
     }
-    printf("已连接 pid %lu\n", game.Pid());
+    printf("연결됨. PID %lu\n", game.Pid());
 
     const auto t0 = std::chrono::steady_clock::now();
     lj::Field field;
@@ -53,7 +55,7 @@ int wmain(int argc, wchar_t** argv)
     const bool ok = lj::LocateGlobalNumber(game, name, neighbor, field, log);
     const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count();
     printf("%s", log.c_str());
-    printf("定位耗时 %lld ms\n", static_cast<long long>(ms));
+    printf("탐색 시간: %lld ms\n", static_cast<long long>(ms));
     if (!ok)
         return 2;
 
@@ -63,12 +65,12 @@ int wmain(int argc, wchar_t** argv)
 
     if (doSet) {
         if (!game.EnableWrite() || !lj::WriteNumber(game, field, setValue)) {
-            printf("写入失败\n");
+            printf("값 쓰기에 실패했습니다.\n");
             return 3;
         }
         Sleep(500); // 等游戏跑几帧，确认没被改回去
         lj::ReadNumber(game, field, value);
-        printf("已写入 %.0f，半秒后读回 %.0f\n", setValue, value);
+        printf("%.0f을 기록했습니다. 0.5초 후 읽은 값: %.0f\n", setValue, value);
     }
     return 0;
 }

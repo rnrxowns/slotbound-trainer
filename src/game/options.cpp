@@ -11,30 +11,28 @@ using namespace luaops;
 // 词条目录：id  名字  稀有度  来源  效果  已解锁  备注  档位(value:chance|...)
 constexpr const char* kCatalogLua = R"lua(
 local RO = require('src.data.randomoption')
-local Lang = require('src.data.language')
-local loc = Lang[rawget(_G, 'currentGameLang') or 'zh'] or Lang.zh or {}
 local FS = '\31'
 local out = {}
 for _, d in ipairs(RO.catalog) do
   local id = tostring(d.id)
   local notes = {}
-  local src = ({ Spawn = '出生时', Promotion = '晋升时', Both = '出生 / 晋升' })[tostring(d.source)]
+  local src = ({ Spawn = '생성 시', Promotion = '승급 시', Both = '생성 및 승급 시' })[tostring(d.source)]
   if src then notes[#notes+1] = src end
-  if d.requiresBasicAttack then notes[#notes+1] = '需要普通攻击' end
-  if d.requiresRangedBasicAttack then notes[#notes+1] = '需要远程普攻' end
-  if d.requiresActiveSkill then notes[#notes+1] = '需要主动技能' end
-  if d.requiresAttackSkill then notes[#notes+1] = '需要攻击技能' end
-  if d.requiresBountySource then notes[#notes+1] = '需要能拿赏金' end
-  if d.requiresNudge then notes[#notes+1] = '需要本局开微调' end
-  if d.requiresDeploymentRoom then notes[#notes+1] = '需要空余单位名额' end
-  if d.incompatibleWith then notes[#notes+1] = '与 ' .. tostring(d.incompatibleWith) .. ' 互斥' end
+  if d.requiresBasicAttack then notes[#notes+1] = '기본 공격 필요' end
+  if d.requiresRangedBasicAttack then notes[#notes+1] = '원거리 기본 공격 필요' end
+  if d.requiresActiveSkill then notes[#notes+1] = '액티브 스킬 필요' end
+  if d.requiresAttackSkill then notes[#notes+1] = '공격 스킬 필요' end
+  if d.requiresBountySource then notes[#notes+1] = '현상금 획득 가능 유닛 전용' end
+  if d.requiresNudge then notes[#notes+1] = '이번 판에서 미세 조정 기능 필요' end
+  if d.requiresDeploymentRoom then notes[#notes+1] = '빈 유닛 배치 슬롯 필요' end
+  if d.incompatibleWith then notes[#notes+1] = '동시 적용 불가 (특성 ID ' .. tostring(d.incompatibleWith) .. ')' end
   if type(d.permittedGrades) == 'table' then
     local g = {}
     for k, v in pairs(d.permittedGrades) do g[#g+1] = type(k) == 'number' and tostring(v) or tostring(k) end
     table.sort(g)
-    local zh = { normal = '普通', advanced = '高级', rare = '稀有', special = '特殊', legendary = '传说', prism = '棱彩' }
-    for i, x in ipairs(g) do g[i] = zh[x] or x end
-    notes[#notes+1] = '仅限 ' .. table.concat(g, '/') .. ' 品级单位'
+    local grades = { normal = '일반', advanced = '고급', rare = '희귀', special = '특수', legendary = '전설', prism = '프리즘' }
+    for i, x in ipairs(g) do g[i] = grades[x] or x end
+    notes[#notes+1] = table.concat(g, ' / ') .. ' 등급 유닛 전용'
   end
   local vars = {}
   for _, v in ipairs(d.variants or {}) do
@@ -43,11 +41,11 @@ for _, d in ipairs(RO.catalog) do
   -- 要传定义表：传字符串 id 时游戏函数查不到 initiallyUnlocked，永远返回 true
   local ok, unlocked = pcall(RO.isUnlocked, d)
   out[#out+1] = table.concat({ id,
-    loc['random_option.name.' .. id] or tostring(d.name),
+    textField(localizedText('random_option.name.' .. id, d.name) or id),
     tostring(d.rarity), tostring(d.source),
-    loc['random_option.effect.' .. id] or tostring(d.effect),
+    textField(localizedText('random_option.effect.' .. id, d.effect)),
     (ok and unlocked == false) and '0' or '1',
-    table.concat(notes, '，'), table.concat(vars, '|') }, FS)
+    table.concat(notes, ', '), table.concat(vars, '|') }, FS)
 end
 return table.concat(out, '\n')
 )lua";
@@ -75,20 +73,20 @@ local caps = {
 for _, d in ipairs(RO.catalog) do
   local id = tostring(d.id)
   local why = {}
-  if try(RO.isUnlocked, d) == false then why[#why+1] = '升级树里还没解锁' end
+  if try(RO.isUnlocked, d) == false then why[#why+1] = '업그레이드 트리에서 미해금' end
   if type(d.permittedGrades) == 'table' then
     local ok = false
     for k, v in pairs(d.permittedGrades) do if (type(k) == 'number' and v or k) == u.grade then ok = true end end
-    if not ok then why[#why+1] = '单位品级不符' end
+    if not ok then why[#why+1] = '적용 대상 등급이 아님' end
   end
-  if d.requiresBasicAttack and caps.basic == false then why[#why+1] = '该兵种没有普通攻击' end
-  if d.requiresRangedBasicAttack and caps.ranged == false then why[#why+1] = '该兵种不是远程普攻' end
-  if d.requiresActiveSkill and caps.active == false then why[#why+1] = '该兵种没有主动技能' end
-  if d.requiresAttackSkill and caps.attack == false then why[#why+1] = '该兵种没有攻击技能' end
-  if d.requiresBountySource and caps.bounty == false then why[#why+1] = '该兵种拿不到赏金' end
-  if d.requiresNudge and caps.nudge == false then why[#why+1] = '本局没开微调' end
-  if d.incompatibleWith and have[tostring(d.incompatibleWith)] then why[#why+1] = '与已有词条 ' .. tostring(d.incompatibleWith) .. ' 互斥' end
-  out[#out+1] = table.concat({ 'E', id, table.concat(why, '，'), tostring(have[id] or 0) }, FS)
+  if d.requiresBasicAttack and caps.basic == false then why[#why+1] = '기본 공격 없음' end
+  if d.requiresRangedBasicAttack and caps.ranged == false then why[#why+1] = '원거리 기본 공격 없음' end
+  if d.requiresActiveSkill and caps.active == false then why[#why+1] = '액티브 스킬 없음' end
+  if d.requiresAttackSkill and caps.attack == false then why[#why+1] = '공격 스킬 없음' end
+  if d.requiresBountySource and caps.bounty == false then why[#why+1] = '현상금 획득 불가' end
+  if d.requiresNudge and caps.nudge == false then why[#why+1] = '이번 판에서 미세 조정이 꺼짐' end
+  if d.incompatibleWith and have[tostring(d.incompatibleWith)] then why[#why+1] = '이미 적용된 특성과 충돌 (ID ' .. tostring(d.incompatibleWith) .. ')' end
+  out[#out+1] = table.concat({ 'E', id, table.concat(why, ', '), tostring(have[id] or 0) }, FS)
 end
 return table.concat(out, '\n')
 )lua";
@@ -97,7 +95,8 @@ return table.concat(out, '\n')
 
 const char* OptionEditor::CatalogCode() const
 {
-    return kCatalogLua;
+    static const std::string code = std::string(kLocalizedTextLua) + kCatalogLua;
+    return code.c_str();
 }
 
 void OptionEditor::OnCatalog(const std::string& text)
@@ -158,7 +157,7 @@ void OptionEditor::SetOption(int slot, const std::string& id, const std::string&
         "if not o then\n"
         "  local d\n"
         "  for _, x in ipairs(RO.catalog) do if tostring(x.id) == " + Quote(id) + " then d = x end end\n"
-        "  if not d then return '目录里没有这个词条 id' end\n"
+        "  if not d then return '해당 ID의 특성을 찾을 수 없습니다.' end\n"
         "  o = { id = d.id, name = d.name, effect = d.effect, icon = d.icon, rarity = d.rarity, source = d.source }\n"
         "  local vs, total = d.variants or {}, 0\n"
         "  for _, v in ipairs(vs) do total = total + (tonumber(v.chance or v.weight) or 0) end\n"
@@ -180,7 +179,7 @@ void OptionEditor::SetOption(int slot, const std::string& id, const std::string&
     const Def* d = Find(id);
     const std::string what = "「" + (d ? d->name : id) + (variant.empty() ? "" : " " + variant) + "」";
     const bool adding = slot > static_cast<int>(unit_.slots.size());
-    Act(std::move(code), adding ? "已新增词条" + what : "已把第 " + std::to_string(slot) + " 个词条换成" + what);
+    Act(std::move(code), adding ? "특성을 추가했습니다. " + what : std::to_string(slot) + "번 특성을 교체했습니다. " + what);
 }
 
 void OptionEditor::RemoveOption(int slot)
@@ -192,5 +191,5 @@ void OptionEditor::RemoveOption(int slot)
         std::to_string(slot) + ") end\n" +
         "u.randomOption = u.randomOptions and u.randomOptions[1] or nil\n"
         "return 'ok'\n";
-    Act(std::move(code), "已删除第 " + std::to_string(slot) + " 个词条");
+    Act(std::move(code), std::to_string(slot) + "번 특성을 삭제했습니다.");
 }

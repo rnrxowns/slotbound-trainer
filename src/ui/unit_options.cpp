@@ -15,9 +15,14 @@ using Def = OptionEditor::Def;
 
 void DrawSlots(OptionEditor& editor, OptionsUi& ui, const OptionEditor::Unit& unit)
 {
+    const float scale = Scale();
     const int count = static_cast<int>(unit.slots.size());
     if (!ImGui::BeginTable("slots", 4, kSlotTable))
         return;
+    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 44.0f * scale);
+    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 148.0f * scale);
+    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
+    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 50.0f * scale);
     for (const OptionEditor::Slot& s : unit.slots) {
         const Def* d = editor.Find(s.id);
         ImGui::TableNextRow();
@@ -25,14 +30,16 @@ void DrawSlots(OptionEditor& editor, OptionsUi& ui, const OptionEditor::Unit& un
         ImGui::TableNextColumn();
         SlotPicker(ui.targetSlot, s.index, s.index);
         ImGui::TableNextColumn();
+        ImGui::PushTextWrapPos(0.0f);
         ImGui::TextColored(d ? OptionRarity(d->rarity).color : kRed, "%s %s", d ? d->name.c_str() : s.id.c_str(),
             s.value.c_str());
+        ImGui::PopTextWrapPos();
         ImGui::TableNextColumn();
         if (d)
             ImGui::TextWrapped("%s", d->effect.c_str());
         ImGui::TableNextColumn();
         ImGui::BeginDisabled(editor.Busy());
-        if (ImGui::SmallButton("删除"))
+        if (ImGui::SmallButton("삭제###删除"))
             editor.RemoveOption(s.index);
         ImGui::EndDisabled();
         ImGui::PopID();
@@ -45,11 +52,14 @@ void DrawSlots(OptionEditor& editor, OptionsUi& ui, const OptionEditor::Unit& un
     SlotPicker(ui.targetSlot, 0, count + 1);
     ImGui::PopID();
     ImGui::TableNextColumn();
-    ImGui::TextDisabled("（新增，默认：在下面点「用这个」就加一个）");
+    ImGui::TextDisabled("추가 (기본값)");
+    ImGui::TableNextColumn();
+    ImGui::PushTextWrapPos(0.0f);
+    ImGui::TextDisabled("아래에서 ‘적용’을 누르면 특성이 추가됩니다.");
     if (count >= 5) {
-        ImGui::TableNextColumn();
-        ImGui::TextColored(kAmber, "已超过游戏一次最多抽的 5 个，面板可能显示不全");
+        ImGui::TextColored(kAmber, "게임의 한 번 추첨 한도는 5개이며, 패널에 일부만 표시될 수 있습니다.");
     }
+    ImGui::PopTextWrapPos();
     ImGui::EndTable();
 }
 
@@ -57,22 +67,22 @@ void DrawSlots(OptionEditor& editor, OptionsUi& ui, const OptionEditor::Unit& un
 void VariantCombo(const Def& d, int& pick)
 {
     if (d.variants.empty()) {
-        ImGui::TextDisabled("固定");
+        ImGui::TextDisabled("고정");
         return;
     }
     if (pick >= static_cast<int>(d.variants.size())) // 重读词条表后档位变少了
         pick = static_cast<int>(d.variants.size()) - 1;
-    char preview[48];
-    snprintf(preview, sizeof(preview), "%s", pick < 0 ? "随机" : d.variants[pick].value.c_str());
+    const char* preview = pick < 0 ? "무작위" : d.variants[pick].value.c_str();
     ImGui::SetNextItemWidth(-FLT_MIN);
     if (!ImGui::BeginCombo("##v", preview))
         return;
-    if (ImGui::Selectable("随机（按游戏概率）", pick < 0))
+    if (ImGui::Selectable("무작위 (게임 확률 적용)###随机（按游戏概率）", pick < 0))
         pick = -1;
     for (int i = 0; i < static_cast<int>(d.variants.size()); ++i) {
-        char label[64];
-        snprintf(label, sizeof(label), "%s   概率 %.0f%%", d.variants[i].value.c_str(), d.variants[i].chance * 100.0);
-        if (ImGui::Selectable(label, pick == i))
+        char probability[32];
+        snprintf(probability, sizeof(probability), " · 확률 %.0f%%", d.variants[i].chance * 100.0);
+        const std::string label = d.variants[i].value + probability;
+        if (ImGui::Selectable(label.c_str(), pick == i))
             pick = i;
     }
     ImGui::EndCombo();
@@ -85,27 +95,35 @@ void DrawRow(OptionEditor& editor, OptionsUi& ui, const OptionEditor::Unit& unit
     ImGui::TableNextRow();
     ImGui::PushID(d.id.c_str());
     ImGui::TableNextColumn();
+    ImGui::PushTextWrapPos(0.0f);
     ImGui::TextColored(reason.empty() ? OptionRarity(d.rarity).color : kMuted, "%s", d.name.c_str());
     ImGui::TextDisabled("%s", d.id.c_str());
+    ImGui::PopTextWrapPos();
     ImGui::TableNextColumn();
+    ImGui::PushTextWrapPos(0.0f);
     ImGui::TextWrapped("%s", d.effect.c_str());
     HintText(d.notes);
     if (!reason.empty())
-        ImGui::TextColored(kRed, "这个单位抽不到：%s", reason.c_str());
+        ImGui::TextColored(kRed, "이 유닛의 추첨 대상에서 제외됩니다. %s", reason.c_str());
     if (owned > 0)
-        ImGui::TextColored(kAmber, "已有 %d 个，再加会叠加（效果相乘）", owned);
+        ImGui::TextColored(kAmber, "이미 %d개 보유 중입니다. 더 추가하면 효과가 곱연산으로 중첩됩니다.", owned);
+    ImGui::PopTextWrapPos();
     ImGui::TableNextColumn();
     const int last = d.variants.empty() ? -1 : static_cast<int>(d.variants.size()) - 1;
     int& pick = ui.variantPick.try_emplace(d.id, last).first->second;
     VariantCombo(d, pick);
     ImGui::TableNextColumn();
     ImGui::BeginDisabled(editor.Busy());
-    if (ImGui::SmallButton(reason.empty() ? "用这个" : "强加")) {
+    if (ImGui::SmallButton(reason.empty() ? "적용###用这个" : "강제 적용###强加")) {
         const bool valid = pick >= 0 && pick < static_cast<int>(d.variants.size());
         editor.SetOption(ui.targetSlot > 0 ? ui.targetSlot : count + 1, d.id, valid ? d.variants[pick].value : "");
     }
-    if (!reason.empty())
-        ImGui::SetItemTooltip("游戏规则下这个单位抽不到；强加后可能没效果或表现异常");
+    if (!reason.empty() && ImGui::BeginItemTooltip()) {
+        ImGui::PushTextWrapPos(360.0f * Scale());
+        ImGui::TextUnformatted("게임 규칙상 이 유닛은 이 특성을 뽑을 수 없습니다. 강제 적용 시 효과가 없거나 비정상적으로 작동할 수 있습니다.");
+        ImGui::PopTextWrapPos();
+        ImGui::EndTooltip();
+    }
     ImGui::EndDisabled();
     ImGui::PopID();
 }
@@ -115,32 +133,35 @@ void DrawRow(OptionEditor& editor, OptionsUi& ui, const OptionEditor::Unit& unit
 void DrawOptionsBody(OptionEditor& editor, OptionsUi& ui)
 {
     const float scale = Scale();
-    if (ImGui::SmallButton("重读词条表"))
+    if (ImGui::SmallButton("특성 목록 새로 고침###重读词条表"))
         editor.ReloadCatalog();
     ErrorText(editor.Error());
 
     const OptionEditor::Unit& unit = editor.Selected();
     if (!unit.valid) {
-        ImGui::TextDisabled("正在读这个单位的词条…");
+        ImGui::TextDisabled("선택한 유닛의 특성을 불러오는 중…");
         return;
     }
     FollowTargetSlot(ui.targetSlot, ui.unitKey, unit.sym, unit.rosterIndex, static_cast<int>(unit.slots.size()));
     DrawSlots(editor, ui, unit);
-    ImGui::TextDisabled("默认是新增；要替换某个就先点它左边的圆点。战斗中改的话下一场战斗才算属性");
+    ImGui::PushTextWrapPos(0.0f);
+    ImGui::TextDisabled("기본 동작은 추가입니다. 교체하려면 왼쪽 원을 선택하세요. 전투 중 변경한 능력치는 다음 전투부터 적용됩니다.");
+    ImGui::PopTextWrapPos();
     HintText(editor.Message());
 
-    SectionTitle("全部词条");
+    SectionTitle("전체 특성");
     ImGui::SetNextItemWidth(200.0f * scale);
-    ImGui::InputTextWithHint("##filter", "搜索名字 / 效果", ui.filter, sizeof(ui.filter));
+    ImGui::InputTextWithHint("##filter", "이름 / 효과 검색", ui.filter, sizeof(ui.filter));
     ImGui::SameLine();
     TargetSlotHint(ui.targetSlot);
     if (editor.Catalog().empty()) {
-        ImGui::TextDisabled("正在读词条表…");
+        ImGui::TextDisabled("특성 목록을 불러오는 중…");
         return;
     }
-    ImGui::SameLine();
-    ImGui::Checkbox("只看适用的", &ui.onlyFit);
-    ImGui::SetItemTooltip("隐藏这个单位按游戏规则抽不到的词条（兵种不符、品级不符、互斥等）");
+    constexpr const char* kOnlyFit = "적용 가능만 보기###只看适用的";
+    SameLineIfFits(kOnlyFit);
+    ImGui::Checkbox(kOnlyFit, &ui.onlyFit);
+    ImGui::SetItemTooltip("병종·등급 제한이나 상호 배타 조건으로 이 유닛이 뽑을 수 없는 특성을 숨깁니다.");
 
     // 按稀有度分组：传说 → 稀有 → 普通
     ImGui::BeginChild("catalog", ImVec2(0.0f, 380.0f * scale));
@@ -153,10 +174,10 @@ void DrawOptionsBody(OptionEditor& editor, OptionsUi& ui)
             continue;
         if (!ImGui::BeginTable(rarity, 4, kListTable))
             continue;
-        ImGui::TableSetupColumn("词条", ImGuiTableColumnFlags_WidthFixed, 120.0f * scale);
-        ImGui::TableSetupColumn("效果", ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableSetupColumn("数值", ImGuiTableColumnFlags_WidthFixed, 110.0f * scale);
-        ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 60.0f * scale);
+        ImGui::TableSetupColumn("특성", ImGuiTableColumnFlags_WidthFixed, 142.0f * scale);
+        ImGui::TableSetupColumn("효과", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("수치", ImGuiTableColumnFlags_WidthFixed, 110.0f * scale);
+        ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 90.0f * scale);
         for (const Def& d : editor.Catalog()) {
             if (d.rarity != rarity)
                 continue;
