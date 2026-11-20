@@ -1,5 +1,5 @@
 // Slotbound 트레이너는 게임 메모리를 읽고 쓰며 투명 오버레이에 UI를 표시합니다.
-//   资源页：外部读写 Lua 全局变量 coins（金币）、spinsLeft（剩余旋转次数）、jungsu（水晶），不注入。
+// 자원은 주입 후 Lua 브리지로 읽고 쓰며, 주입 전에는 기존 메모리 검색을 사용합니다.
 //   单位 / 物品 / 老虎机页：用户点「注入」后经 slotbound_lua.dll 在游戏里执行 Lua。
 // 这里只有主循环；各页的画法在 src/ui/，和游戏打交道的在 src/game/、src/core/。
 
@@ -100,6 +100,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
         { { game, "jungsu", "displayCoins", "jungsuBalanceTarget", "jungsuBalance" }, &Config::jungsu,
             { "정수", { 1, 5, 10 }, 1, 10, 99, {} } },
     };
+    ResourceBridge resources({ &vars[0].var, &vars[1].var, &vars[2].var });
     ui::LuaPages pages;
     bool menuOpen = false;
     KeyEdge menuKey, panicKey, hideKey, exitKey;
@@ -117,6 +118,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
         if (now - lastPoll >= 1000) {
             lastPoll = now;
             if (game.Pid() && !game.IsAlive()) {
+                resources.Select(0, false, cfg.enabled);
                 for (ui::TrackedVar& t : vars)
                     t.var.Reset(); // 先等后台定位线程停下，再关句柄
                 game.Detach();
@@ -140,12 +142,14 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
             overlay::SetVisible(!overlay::Visible());
         if (exitKey.Pressed(cfg.exitKey))
             PostQuitMessage(0);
+        const bool injected = game.Pid() && bridge::Injected();
+        resources.Select(game.Pid(), injected, cfg.enabled);
         for (ui::TrackedVar& t : vars) {
             VarConfig& vc = cfg.*t.cfg;
             if (t.lockEdge.Pressed(vc.lockKey))
                 vc.lock = !vc.lock;
             if (t.addEdge.Pressed(vc.addKey) && cfg.enabled && t.var.Ready())
-                t.var.Set(t.var.Value() + vc.addAmount);
+                t.var.Add(vc.addAmount);
         }
         if (menuOpen)
             overlay::SetVisible(true); // 菜单开着时一定要看得见
@@ -158,7 +162,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
             const VarConfig& vc = cfg.*t.cfg;
             t.var.Update(cfg.enabled && vc.lock, vc.lockValue);
         }
-        const bool injected = game.Pid() && bridge::Injected();
+        resources.Tick();
         pages.Update(menuOpen, injected, cfg);
 
         // 覆盖层隐藏、或者菜单和状态栏都关着：不用画。只在刚变成这样的那一帧再画一次（清掉上一帧的内容）。
@@ -183,6 +187,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
         overlay::EndFrame();
     }
 
+    resources.Select(0, false, false);
     for (ui::TrackedVar& t : vars)
         t.var.Reset();
     autoSave.Flush(cfg);

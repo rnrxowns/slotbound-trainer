@@ -43,7 +43,7 @@ bool DrawMenu(MenuContext& ctx)
         void (*draw)(MenuContext&);
     };
     static const Tab kTabs[] = {
-        { "자원", [](MenuContext& c) { DrawResourcesPage(c.cfg, c.vars); } },
+        { "자원", DrawResourcesPage },
         { "유닛", DrawUnitPage },
         { "아이템", DrawItemsPage },
         { "슬롯머신", DrawSlotPage },

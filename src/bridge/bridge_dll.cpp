@@ -281,14 +281,13 @@ DWORD WINAPI MainThread(void*)
     HANDLE pipeThread = CreateThread(nullptr, 0, PipeThread, nullptr, 0, nullptr);
     WaitForSingleObject(unload, INFINITE);
 
-    Uninstall();
     g_stop = true;
-    // 管道线程可能卡在 ConnectNamedPipe：连一下自己让它醒过来
-    HANDLE poke = CreateFileW(bridge::kPipeName, GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
-    if (poke != INVALID_HANDLE_VALUE)
-        CloseHandle(poke);
+    Uninstall();
     if (pipeThread) {
-        WaitForSingleObject(pipeThread, 3000);
+        // A resource poll can be waiting for either a pipe client or the game thread.
+        // Keep the DLL loaded until the pipe thread actually exits.
+        while (WaitForSingleObject(pipeThread, 50) == WAIT_TIMEOUT)
+            CancelSynchronousIo(pipeThread);
         CloseHandle(pipeThread);
     }
     CloseHandle(unload);

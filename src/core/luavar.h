@@ -1,8 +1,11 @@
 #pragma once
 
+#include <array>
 #include <future>
+#include <optional>
 #include <string>
 
+#include "bridge/luaclient.h"
 #include "luajit.h"
 #include "process.h"
 
@@ -33,6 +36,7 @@ public:
 
     // 一次性改成 value。没定位到 / 写失败返回 false
     bool Set(double value);
+    bool Add(double amount);
 
     // 立刻重新定位（菜单里的「重新定位」）
     void Relocate();
@@ -46,8 +50,17 @@ public:
     double Value() const { return value_; }
     uintptr_t Node() const { return field_.node; }
     const std::string& Log() const { return log_; }
+    bool UsesBridge() const { return useBridge_; }
+    const std::string& Message() const { return message_; }
 
 private:
+    friend class ResourceBridge;
+
+    struct Change {
+        bool relative;
+        double value;
+    };
+
     struct LocateResult {
         bool ok = false;
         lj::Field field;
@@ -57,6 +70,7 @@ private:
 
     void StartLocate();
     bool Write(double value);
+    void UseBridge(bool useBridge);
 
     GameProcess& game_;
     const char* name_;
@@ -70,4 +84,36 @@ private:
     std::string log_;
     std::future<LocateResult> pending_;
     ULONGLONG lastAttempt_ = 0;
+    bool discardLocate_ = false;
+    bool useBridge_ = false;
+    bool refresh_ = false;
+    bool mirrorWarning_ = false;
+    bool queuedFailure_ = false;
+    std::optional<Change> change_;
+    std::optional<double> lockValue_;
+    std::string message_;
+};
+
+// Shares one background Lua request across all three resources.
+class ResourceBridge {
+public:
+    explicit ResourceBridge(std::array<LuaVar*, 3> vars) : vars_(vars) {}
+    ~ResourceBridge() { stop_.request_stop(); }
+
+    void Select(DWORD pid, bool injected, bool enabled);
+    void Tick();
+
+private:
+    void Complete();
+
+    std::array<LuaVar*, 3> vars_;
+    DWORD pid_ = 0;
+    bool enabled_ = false;
+    bool discardReply_ = false;
+    ULONGLONG nextPoll_ = 0;
+    ULONGLONG retryBridgeAt_ = 0;
+    DWORD mismatchedPid_ = 0;
+    std::stop_source stop_;
+    std::future<bridge::Result> pending_;
+    std::array<bool, 3> manual_{};
 };

@@ -2,6 +2,7 @@
 
 #include <windows.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <mutex>
 #include <string>
@@ -32,7 +33,7 @@ bool Available()
     return WaitNamedPipeW(kPipeName, 0) || GetLastError() == ERROR_SEM_TIMEOUT;
 }
 
-Result Execute(const std::string& code, unsigned timeoutMs)
+Result Execute(const std::string& code, unsigned timeoutMs, unsigned long expectedPid, std::stop_token stop)
 {
     // DLL 那边是单实例管道，一次只服务一个连接，回完话再重建。修改器里几个后台任务
     // （读目录、刷新单位、改词条）会同时发请求 → 本进程内先排队，连接时再对「忙 / 正在重建」重试。
@@ -42,6 +43,8 @@ Result Execute(const std::string& code, unsigned timeoutMs)
     const ULONGLONG deadline = GetTickCount64() + timeoutMs;
     HANDLE pipe = INVALID_HANDLE_VALUE;
     for (;;) {
+        if (stop.stop_requested())
+            return { false, {} };
         pipe = CreateFileW(kPipeName, GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
         if (pipe != INVALID_HANDLE_VALUE)
             break;
@@ -50,12 +53,24 @@ Result Execute(const std::string& code, unsigned timeoutMs)
         if (now >= deadline)
             return { false, err == ERROR_FILE_NOT_FOUND ? "게임의 slotbound_lua.dll에 연결할 수 없습니다. DLL 주입 상태를 확인하세요."
                                                         : "통신 파이프가 사용 중입니다. 잠시 후 다시 시도하세요." };
-        if (err == ERROR_PIPE_BUSY)
-            WaitNamedPipeW(kPipeName, static_cast<DWORD>(deadline - now));
+        if (err == ERROR_PIPE_BUSY) {
+            const ULONGLONG wait = stop.stop_possible() ? std::min<ULONGLONG>(50, deadline - now) : deadline - now;
+            WaitNamedPipeW(kPipeName, static_cast<DWORD>(wait));
+        }
         else if (err == ERROR_FILE_NOT_FOUND)
             Sleep(20); // 服务端刚断开、还没重建
         else
             return { false, "통신 파이프를 열지 못했습니다 (오류 " + std::to_string(err) + ")" };
+    }
+
+    ULONG serverPid = 0;
+    if (expectedPid && (!GetNamedPipeServerProcessId(pipe, &serverPid) || serverPid != expectedPid)) {
+        CloseHandle(pipe);
+        return { false, "연결된 게임 프로세스의 Lua 브리지가 아닙니다.", true };
+    }
+    if (stop.stop_requested()) {
+        CloseHandle(pipe);
+        return { false, {} };
     }
 
     Result r;

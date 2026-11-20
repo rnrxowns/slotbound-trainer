@@ -1,4 +1,4 @@
-// 「资源」页（金币 / 旋转次数 / 水晶：外部读写，不注入）和左上角状态栏
+// 자원 편집과 왼쪽 위 상태 표시줄
 
 #include <cstdio>
 
@@ -9,7 +9,7 @@ namespace ui {
 
 namespace {
 
-constexpr const char* kWriteFailed = "값을 변경하지 못했습니다. 메모리 위치를 다시 찾는 중입니다.";
+constexpr const char* kWriteFailed = "값을 변경하지 못했습니다. 진단 탭에서 메모리 위치를 다시 검색할 수 있습니다.";
 
 void DrawStatusVar(const Config& cfg, const VarConfig& vc, const LuaVar& var, const char* label)
 {
@@ -38,6 +38,9 @@ void DrawVarSection(const Config& cfg, VarConfig& vc, LuaVar& var, VarUi& ui)
 {
     ImGui::PushID(ui.label);
     SectionTitle(ui.label);
+    const bool viaBridge = var.UsesBridge();
+    if (var.GetState() != LuaVar::State::NotConnected)
+        ImGui::TextDisabled("%s", VarMethodText(var));
     if (!var.Ready())
         ImGui::TextDisabled("%s", VarStateText(var));
     else
@@ -46,21 +49,29 @@ void DrawVarSection(const Config& cfg, VarConfig& vc, LuaVar& var, VarUi& ui)
     ImGui::BeginDisabled(!var.Ready() || !cfg.enabled);
     NonNegativeInput("##set", ui.setValue, ui);
     ImGui::SameLine();
-    if (ImGui::Button("값 적용###set_value"))
-        ui.message = var.Set(ui.setValue) ? "값을 변경했습니다." : kWriteFailed;
+    if (ImGui::Button("값 적용###set_value")) {
+        const bool applied = var.Set(ui.setValue);
+        if (!viaBridge)
+            ui.message = applied ? "값을 변경했습니다." : kWriteFailed;
+    }
     for (int add : ui.quickAdd) {
         ImGui::SameLine();
         char label[24];
         snprintf(label, sizeof(label), "+%d", add);
-        if (ImGui::Button(label))
-            ui.message = var.Set(var.Value() + add) ? "값을 늘렸습니다." : kWriteFailed;
+        if (ImGui::Button(label)) {
+            const bool applied = var.Add(add);
+            if (!viaBridge)
+                ui.message = applied ? "값을 늘렸습니다." : kWriteFailed;
+        }
     }
     ImGui::EndDisabled();
-    HintText(ui.message);
+    if (viaBridge)
+        ui.message.clear();
+    HintText(viaBridge ? var.Message() : ui.message);
 
     char text[64];
     snprintf(text, sizeof(text), "%s 고정", ui.label);
-    ToggleSwitch(text, &vc.lock, "자원을 사용하면 고정값으로 즉시 복구합니다. 끄면 현재 값에서 차감됩니다.");
+    ToggleSwitch(text, &vc.lock, "자원을 사용하면 지정한 값으로 복구합니다. 끄면 현재 값에서 차감됩니다.");
     NonNegativeInput("고정값###lock_value", vc.lockValue, ui);
     KeyBinder("고정 단축키", vc.lockKey, true);
     NonNegativeInput("단축키로 늘릴 양###add_amount", vc.addAmount, ui);
@@ -74,11 +85,18 @@ const char* VarStateText(const LuaVar& var)
 {
     switch (var.GetState()) {
     case LuaVar::State::NotConnected: return "게임에 연결되지 않았습니다";
-    case LuaVar::State::Locating: return "값을 찾는 중…";
-    case LuaVar::State::NotFound: return "검색 실패 (메뉴 또는 로딩 중일 수 있음, 5초 후 재검색)";
+    case LuaVar::State::Locating: return var.UsesBridge() ? "Lua 자원 값을 불러오는 중…" : "메모리에서 값을 찾는 중…";
+    case LuaVar::State::NotFound:
+        return var.UsesBridge() ? "Lua 자원 값을 읽지 못했습니다. 게임을 시작한 뒤 다시 확인하세요."
+                                : "검색 실패 (메뉴 또는 로딩 중일 수 있음, 5초 후 재검색)";
     case LuaVar::State::Ready: return "";
     }
     return "";
+}
+
+const char* VarMethodText(const LuaVar& var)
+{
+    return var.UsesBridge() ? "Lua 브리지 호환 모드" : "게임 메모리 직접 접근";
 }
 
 void DrawStatusBar(const Config& cfg, const GameProcess& game, std::span<const TrackedVar> vars)
@@ -106,12 +124,17 @@ void DrawStatusBar(const Config& cfg, const GameProcess& game, std::span<const T
     ImGui::End();
 }
 
-void DrawResourcesPage(Config& cfg, std::span<TrackedVar> vars)
+void DrawResourcesPage(MenuContext& ctx)
 {
-    for (TrackedVar& t : vars)
-        DrawVarSection(cfg, cfg.*t.cfg, t.var, t.ui);
+    if (ctx.game.Pid() && !ctx.injected) {
+        ImGui::TextWrapped("메모리 검색으로 자원을 찾지 못하면 아래에서 자원 호환 모드를 켤 수 있습니다. "
+                           "이 모드는 게임의 Lua 브리지를 통해 자원 값을 읽고 변경합니다.");
+        DrawBridgeBar(ctx, "자원 호환 모드");
+    }
+    for (TrackedVar& t : ctx.vars)
+        DrawVarSection(ctx.cfg, ctx.cfg.*t.cfg, t.var, t.ui);
     ImGui::Spacing();
-    if (!cfg.enabled)
+    if (!ctx.cfg.enabled)
         ImGui::TextColored(kAmber, "전체 기능이 꺼져 있어 값을 변경하거나 고정할 수 없습니다.");
     ImGui::TextDisabled("트레이너를 종료해도 변경한 값은 유지됩니다.");
 }

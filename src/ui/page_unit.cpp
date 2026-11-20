@@ -313,7 +313,7 @@ bool DrawBridgeBar(const MenuContext& ctx, const char* feature)
         ImGui::TextWrapped("%s 기능을 사용하려면 게임에 slotbound_lua.dll을 주입해야 합니다. "
                            "Lua 브리지는 love.dll의 가져오기 테이블에서 함수 포인터 하나를 교체합니다. "
                            "‘주입 해제’를 누르거나 게임을 종료하면 원래 상태로 복원됩니다.", feature);
-        if (ImGui::Button("DLL 주입 (유닛·아이템·슬롯머신 기능 활성화)###inject")) {
+        if (ImGui::Button("DLL 주입###inject")) {
             injectError.clear();
             // DLL 内嵌在修改器 exe 里，先释放到 %LOCALAPPDATA%\slotbound-trainer\ 再注入
             const std::wstring dll = bridge::ExtractEmbeddedDll(injectError);

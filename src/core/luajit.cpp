@@ -10,6 +10,7 @@ namespace {
 
 constexpr size_t kChunk = 4u << 20; // 一次读 4 MB
 constexpr size_t kOverlap = 64;     // 块之间重叠一点，跨块的字符串也能找到
+constexpr size_t kNeighborWindow = 512;
 
 // 只扫私有、已提交、可读写的内存：LuaJIT 的堆都在这种区域里
 template <typename Fn>
@@ -168,6 +169,8 @@ bool LocateGlobalNumber(const GameProcess& game, const std::string& name, const 
         Logf(log, "변수 이름을 찾지 못했습니다. 메인 메뉴나 로딩 중에는 변수가 없을 수 있습니다.");
         return false;
     }
+    if (useNeighbor && strings[1].empty())
+        Logf(log, "인접 변수 \"%s\"의 문자열 객체를 찾지 못했습니다.", neighbor.c_str());
 
     // 每个字符串对象对应一个带标签的 key；LuaJIT 字符串驻留，正常各只有一个
     std::vector<uint64_t> keys;
@@ -190,17 +193,17 @@ bool LocateGlobalNumber(const GameProcess& game, const std::string& name, const 
     for (size_t k = 0; k < nameKeys; ++k) {
         for (uintptr_t keySlot : refs[k]) {
             const uintptr_t node = keySlot - 8;
-            const uint64_t bits = game.Read<uint64_t>(node);
-            if (!IsNumber(bits))
+            double value;
+            if (!ReadNumber(game, { node, keys[k] }, value))
                 continue;
             bool inGlobals = false;
             for (size_t n = nameKeys; n < keys.size() && !inGlobals; ++n)
-                inGlobals = HasNeighbor(game, node, keys[n], 512);
-            candidates.push_back({ node, keys[k], AsDouble(bits), inGlobals });
+                inGlobals = HasNeighbor(game, node, keys[n], kNeighborWindow);
+            candidates.push_back({ node, keys[k], value, inGlobals });
             // 同名字段可能上千个（别的表、旧快照），只列带邻居的和前几个
             if (inGlobals || candidates.size() <= 5)
-                Logf(log, "  후보 노드 0x%llX = %.0f%s", static_cast<unsigned long long>(node), AsDouble(bits),
-                    inGlobals ? " (인접 변수 확인: _G)" : "");
+                Logf(log, "  후보 노드 0x%llX = %.0f%s", static_cast<unsigned long long>(node), value,
+                    inGlobals ? " (인접 변수 확인)" : "");
         }
     }
     if (candidates.empty()) {
@@ -217,7 +220,9 @@ bool LocateGlobalNumber(const GameProcess& game, const std::string& name, const 
         pick = &candidates[0]; // 只有一个就是它，不管有没有邻居
     else if (inGlobalsCount != 1)
         pick = nullptr;        // 多个候选时要求带邻居的唯一
-    Logf(log, "전체 후보 %zu개, 인접 변수 확인 %zu개", candidates.size(), inGlobalsCount);
+    if (useNeighbor)
+        Logf(log, "전체 후보 %zu개. 앞뒤 %zu개 노드 안에서 \"%s\" 확인: %zu개.",
+            candidates.size(), kNeighborWindow, neighbor.c_str(), inGlobalsCount);
     if (!pick) {
         Logf(log, "_G 필드 하나를 특정할 수 없습니다.");
         return false;

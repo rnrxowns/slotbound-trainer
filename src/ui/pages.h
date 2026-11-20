@@ -7,15 +7,15 @@
 //   page_slot.cpp       老虎机
 //   page_system.cpp     诊断、设置
 
-#include <span>
 #include <string>
 
 #include "menu.h"
 
 namespace ui {
 
-void DrawResourcesPage(Config& cfg, std::span<TrackedVar> vars);
+void DrawResourcesPage(MenuContext& ctx);
 const char* VarStateText(const LuaVar& var);
+const char* VarMethodText(const LuaVar& var);
 
 // 需要注入的页顶部：没注入时给注入按钮并返回 false；已注入时显示状态和「卸载注入」
 bool DrawBridgeBar(const MenuContext& ctx, const char* feature);
